@@ -1,6 +1,13 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
+    // @vue/tsconfig pins lib to ES2022 and leaves newer built-ins to the project, because
+    // they need either a high browser floor or polyfills. This app has the high floor
+    // already: maplibre-gl v6 requires WebGL2 and ships ESM only, so the oldest browser
+    // that can run it at all (Chrome 110, Safari 16, Firefox 115) also has the ES2023
+    // array methods. That makes the non-mutating toSorted/toReversed/with available, which
+    // oxlint's unicorn rules prefer over their in-place counterparts.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "isolatedModules": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,

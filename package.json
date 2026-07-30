@@ -12,6 +12,8 @@
     "type-check": "vue-tsc --noEmit",
     "lint": "oxlint && oxfmt --check && vue-tsc",
     "lint:fix": "oxlint --fix && oxfmt --write",
+    "probe-tiles": "node scripts/probe-tiles.mjs",
+    "fetch-wayback": "node scripts/fetch-wayback-releases.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "deploy:preview": "pnpm run build && wrangler versions upload --preview-alias preview-$(git rev-parse --short=8 HEAD)"
   },
