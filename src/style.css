@@ -2,7 +2,13 @@
 
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/jetbrains-mono";
-@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* Pulled into the `base` layer deliberately. Unlayered CSS wins over layered CSS in the
+   cascade no matter the import order, so plain maplibre-gl.css would beat every Tailwind
+   utility: `.maplibregl-map { position: relative }` silently overrides `absolute`, and the
+   map container then collapses to zero height. Assigning it to `base` puts Tailwind's
+   utilities layer above it, which is where utilities belong. */
+@import "maplibre-gl/dist/maplibre-gl.css" layer(base);
 
 /* Dark-only: this is an imagery viewer, and a light chrome fights the imagery for
    attention. No theme toggle, so the palette is hardcoded and color-scheme is fixed. */
