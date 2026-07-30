@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { onScopeDispose } from "vue";
+import { onScopeDispose, ref } from "vue";
 
+import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
 import MapDeck from "@/components/MapDeck.vue";
 import ModeSwitcher from "@/components/ModeSwitcher.vue";
 import PresetMenu from "@/components/PresetMenu.vue";
 import ShareButton from "@/components/ShareButton.vue";
+import SourcesDialog from "@/components/SourcesDialog.vue";
+import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useMapSync } from "@/composables/useMapSync";
+import { PROVIDERS } from "@/lib/providers/registry";
+import type { ApiKeyName } from "@/lib/providers/types";
 
 const { camera, installHistoryListener } = useAppState();
 const { onChange, applyCamera } = useMapSync();
+const { sources } = useApiKeys();
 
 useKeyboardShortcuts();
 
@@ -21,6 +27,19 @@ useKeyboardShortcuts();
 // directly instead, which is why the history listener is handed it here.
 onScopeDispose(onChange((next) => (camera.value = next)));
 installHistoryListener(applyCamera);
+
+const keysOpen = ref(false);
+const sourcesOpen = ref(false);
+const focusKey = ref<ApiKeyName | undefined>();
+
+function openKeys(key?: ApiKeyName) {
+  focusKey.value = key;
+  keysOpen.value = true;
+}
+
+function gatedCount(): number {
+  return PROVIDERS.filter((p) => p.requiresKey && sources.value[p.requiresKey] === "none").length;
+}
 </script>
 
 <template>
@@ -31,13 +50,21 @@ installHistoryListener(applyCamera);
       <LabelToggle />
       <PresetMenu />
       <ShareButton />
-      <span class="text-ink-400 ml-auto font-mono text-[11px] tabular-nums">
-        {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }}
-      </span>
+
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-ink-400 font-mono text-[11px] tabular-nums"> {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }} </span>
+        <button type="button" class="border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800 rounded border px-2 py-1.5 text-xs" @click="sourcesOpen = true">Sources</button>
+        <button type="button" class="border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800 rounded border px-2 py-1.5 text-xs" @click="openKeys()">
+          Keys<span v-if="gatedCount() > 0" class="text-ink-400 ml-1">{{ gatedCount() }}</span>
+        </button>
+      </div>
     </header>
 
     <main class="min-h-0 flex-1">
-      <MapDeck />
+      <MapDeck @open-keys="openKeys" />
     </main>
+
+    <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
+    <SourcesDialog v-model:open="sourcesOpen" />
   </div>
 </template>

@@ -3,9 +3,12 @@ import { useResizeObserver } from "@vueuse/core";
 import { Map as MapLibreMap } from "maplibre-gl";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
+import PaneAttribution from "@/components/PaneAttribution.vue";
+import PaneStatus from "@/components/PaneStatus.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useDisplaySettings } from "@/composables/useDisplaySettings";
 import { useMapSync } from "@/composables/useMapSync";
+import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
 import { getProvider } from "@/lib/providers/registry";
 import type { PaneLayer } from "@/lib/providers/types";
@@ -23,6 +26,10 @@ const { allowRotate } = useDisplaySettings();
 const layerRef = computed(() => props.layer);
 const { resolved } = useResolvedStyle(layerRef);
 const provider = computed(() => getProvider(props.layer.providerId));
+const { failed } = usePaneTiles(map);
+
+/** The style actually applied, which is what the attribution must be derived from. */
+const appliedStyle = computed(() => (resolved.value.state === "ready" ? resolved.value.style : undefined));
 
 let unregister: (() => void) | undefined;
 
@@ -117,6 +124,17 @@ useResizeObserver(container, () => map.value?.resize());
     <!-- h-full rather than `absolute inset-0`: maplibre sets `position: relative` on this
          element itself, which would defeat inset-based sizing. -->
     <div ref="container" class="h-full w-full" />
+
+    <!-- Chips top-right, clear of the basemap picker that MapDeck places top-left. -->
+    <div v-if="provider" class="pointer-events-none absolute top-2 right-2 z-10 flex max-w-[60%] justify-end">
+      <div class="pointer-events-auto">
+        <PaneStatus :provider="provider" :variant="layer.variant" :failed-tiles="failed" />
+      </div>
+    </div>
+
+    <div class="pointer-events-none absolute right-1 bottom-1 z-10 flex max-w-full justify-end">
+      <PaneAttribution :style="appliedStyle" />
+    </div>
 
     <!-- Blocking states. Overzoom is deliberately NOT one of them: MapLibre upsamples rather
          than blanking, which is correct behaviour, and the pane badge explains it. -->

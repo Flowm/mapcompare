@@ -7,6 +7,7 @@ import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
 import { isStacked } from "@/lib/mode";
+import type { ApiKeyName } from "@/lib/providers/types";
 import { clipInsetFor } from "@/lib/swipe";
 
 /**
@@ -24,6 +25,8 @@ import { clipInsetFor } from "@/lib/swipe";
  *     v-for. That is the obvious structure and it silently destroys every map on each mode
  *     switch.
  */
+
+const emit = defineEmits<{ "open-keys": [key: ApiKeyName] }>();
 
 const { mode, panes, swipe, blinkTopVisible, setPaneLayer, setSwipe } = useAppState();
 
@@ -69,7 +72,7 @@ function paneStyle(index: number) {
              otherwise overlap illegibly. -->
         <div v-if="!isStacked(mode) || index === 0" class="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
           <div class="pointer-events-auto">
-            <BasemapPicker :layer="pane" @update="setPaneLayer(index, $event)" />
+            <BasemapPicker :layer="pane" @update="setPaneLayer(index, $event)" @open-keys="emit('open-keys', $event)" />
           </div>
         </div>
       </div>
@@ -80,7 +83,7 @@ function paneStyle(index: number) {
 
     <!-- In blink mode the second pane's picker sits at the bottom, since its pane is masked. -->
     <div v-if="mode === 'bl' && panes[1]" class="absolute inset-x-0 bottom-0 z-20 flex justify-start p-2">
-      <BasemapPicker :layer="panes[1]" @update="setPaneLayer(1, $event)" />
+      <BasemapPicker :layer="panes[1]" @update="setPaneLayer(1, $event)" @open-keys="emit('open-keys', $event)" />
     </div>
   </div>
 </template>
