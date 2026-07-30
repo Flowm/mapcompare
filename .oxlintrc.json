@@ -8,7 +8,7 @@
   },
   "rules": {
     "consistent-function-scoping": "off",
-    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css", "**/maplibreWorker"] }],
     "no-console": "off",
     "no-underscore-dangle": "off"
   },

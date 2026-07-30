@@ -37,3 +37,15 @@ export function fetchStyle(url: string): Promise<StyleSpecification> {
 export function clearStyleCache(): void {
   cache.clear();
 }
+
+/**
+ * The style the label overlay is extracted from.
+ *
+ * This is the same URL as the standalone OpenFreeMap Liberty basemap entry, so both share one
+ * cached fetch: turning labels on while a Liberty pane is open costs nothing extra.
+ */
+export const LABEL_OVERLAY_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+
+export function fetchLabelOverlayStyle(): Promise<StyleSpecification> {
+  return fetchStyle(LABEL_OVERLAY_STYLE_URL);
+}

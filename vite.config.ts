@@ -23,6 +23,13 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  optimizeDeps: {
+    // Keeps maplibre-gl out of the dependency pre-bundle so its worker stays a sibling module.
+    // src/maplibreWorker.ts is the actual fix and covers production too; this only keeps the dev
+    // graph honest, since the pre-bundler would otherwise inline the worker's imports separately
+    // from the main module.
+    exclude: ["maplibre-gl"],
+  },
   define: {
     __BUILD_DATE__: JSON.stringify(buildDate),
     __BUILD_SHA__: JSON.stringify(buildSha),
