@@ -19,11 +19,21 @@
  */
 import { readFileSync } from "node:fs";
 
-/** Points chosen to sit inside each provider's real coverage. */
-const AMSTERDAM = { lat: 52.373, lon: 4.893, name: "Amsterdam" };
+/**
+ * Two probe points, both required to pass for a provider claiming global coverage.
+ *
+ * One European point is not enough, and trusting it cost real debugging time: Sentinel-2
+ * cloudless 2017 serves Amsterdam happily and answers every non-European tile with a 116-byte
+ * fully transparent PNG — a 200 response, so nothing upstream can treat it as an error. A
+ * second, deliberately non-European point is what catches that class of partial coverage.
+ */
+const POINTS = [
+  { lat: 52.373, lon: 4.893, name: "Amsterdam" },
+  { lat: 43.7681, lon: 59.0219, name: "Aral Sea" },
+];
 
-/** id -> probe point. Everything unlisted uses Amsterdam, which all global layers cover. */
-const POINTS = {};
+/** Low enough that every globally-scoped layer must have data at all probe points. */
+const COVERAGE_ZOOM = 8;
 
 function tileXY(lat, lon, z) {
   const n = 2 ** z;
@@ -88,8 +98,7 @@ function readRegistry() {
   return providers;
 }
 
-function buildUrl(p, z) {
-  const point = POINTS[p.id] ?? AMSTERDAM;
+function buildUrl(p, z, point) {
   const { x, y } = tileXY(point.lat, point.lon, z);
   let url = p.tile.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
   if (p.requiresKey) url = url.replaceAll("{KEY}", process.env[p.requiresKey] ?? "");
@@ -106,7 +115,11 @@ async function probe(url) {
     const res = await fetch(url, { redirect: "follow", headers: { "User-Agent": "mapcompare-probe" } });
     if (!res.ok) return { status: res.status };
     const buf = Buffer.from(await res.arrayBuffer());
-    return { status: res.status, size: imageSize(buf), bytes: buf.length };
+    // A tiny payload, or a PNG where the URL asked for .jpg, is a "no data here" placeholder
+    // rather than imagery. It arrives as a 200, so only the bytes give it away.
+    const isPng = buf.subarray(0, 8).toString("hex") === "89504e470d0a1a0a";
+    const placeholder = buf.length < 1000 || (isPng && /\.jpe?g(\?|$)/i.test(url));
+    return { status: res.status, size: imageSize(buf), bytes: buf.length, placeholder };
   } catch (err) {
     return { status: 0, error: String(err) };
   }
@@ -127,28 +140,42 @@ for (const p of providers) {
     continue;
   }
 
-  const at = await probe(buildUrl(p, p.maxzoom));
-  const above = await probe(buildUrl(p, p.maxzoom + 1));
-
-  // Only two conditions are actual problems, because the two directions are not
-  // symmetric. A ceiling set too HIGH makes MapLibre request tiles that do not exist, so
-  // the pane blanks and sprays 404s. A ceiling set too LOW just means MapLibre upsamples,
-  // so the pane goes blurry and the overzoom badge says so — which for several providers
-  // here is the deliberate choice, because the server will happily upsample and pass
-  // interpolation off as detail. So "z+1 also works" is reported as information, never as
-  // a failure.
+  // Only two conditions are actual problems, because the two directions are not symmetric. A
+  // ceiling set too HIGH makes MapLibre request tiles that do not exist, so the pane blanks and
+  // sprays 404s. A ceiling set too LOW just means MapLibre upsamples, so the pane goes blurry
+  // and the overzoom badge says so — which for several providers here is the deliberate choice,
+  // because the server will happily upsample and pass interpolation off as detail. So "z+1 also
+  // works" is reported as information, never as a failure.
   const errors = [];
-  if (at.status !== 200) errors.push(`maxzoom ${p.maxzoom} returns ${at.status} — declared ceiling is too HIGH, panes will blank`);
+  const notes = [];
+
+  // 1. Coverage, checked at a LOW zoom at every point. Any layer claiming global reach must
+  //    have something everywhere at z8. This is the check that separates a genuine coverage gap
+  //    (Sentinel-2 cloudless 2017 outside Europe) from the ordinary sparsity of high-resolution
+  //    imagery, which only shows up near a provider's ceiling.
+  for (const point of POINTS) {
+    const low = await probe(buildUrl(p, COVERAGE_ZOOM, point));
+    if (low.status !== 200) errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns ${low.status} — no coverage where the registry implies global reach`);
+    else if (low.placeholder)
+      errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns a ${low.bytes}-byte no-data placeholder, not imagery — a 200, so no error handler can see it`);
+  }
+
+  // 2. The declared ceiling and tile size, checked at the primary point. A ceiling set too high
+  //    makes MapLibre request tiles that do not exist, so panes blank and 404s spray. Too low
+  //    merely upsamples, which several providers here declare deliberately, so it is only a note.
+  const at = await probe(buildUrl(p, p.maxzoom, POINTS[0]));
+  const dims = at.size ? `${at.size.w}px` : "?";
+  if (at.status !== 200) errors.push(`z${p.maxzoom} at ${POINTS[0].name} returns ${at.status} — declared ceiling is too HIGH`);
   else if (at.size && at.size.w !== p.tileSize) errors.push(`tileSize declared ${p.tileSize} but server returned ${at.size.w}x${at.size.h} — layer will render one zoom level off`);
 
-  const info = above.status === 200 ? `z${p.maxzoom + 1} also serves; confirm whether that is real detail or server upsampling` : null;
+  const above = await probe(buildUrl(p, p.maxzoom + 1, POINTS[0]));
+  if (above.status === 200 && !above.placeholder) notes.push(`z${p.maxzoom + 1} also serves; confirm whether that is real detail or server upsampling`);
 
   if (errors.length > 0) problems += 1;
   const label = errors.length > 0 ? "FAIL" : "ok  ";
-  const dims = at.size ? `${at.size.w}px` : "?";
-  console.log(`  ${label}  ${p.id.padEnd(30)} z${p.maxzoom}=${at.status} ${dims}  z${p.maxzoom + 1}=${above.status}`);
+  console.log(`  ${label}  ${p.id.padEnd(30)} z${p.maxzoom} ${dims}`);
   for (const e of errors) console.log(`        ${e}`);
-  if (info && errors.length === 0) console.log(`        note: ${info}`);
+  if (errors.length === 0) for (const n of notes) console.log(`        note: ${n}`);
 }
 
 console.log(problems === 0 ? "\nRegistry matches the live services." : `\n${problems} provider(s) drifted from the registry in a way that breaks rendering.`);

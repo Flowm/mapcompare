@@ -151,7 +151,7 @@ export const PROVIDERS: readonly Provider[] = [
     // genuinely run out. EOX will answer 200 at z15 by upsampling; declaring 14 keeps the
     // overzoom honest and visible in the pane badge.
     maxzoom: 14,
-    note: "10 m cloud-free annual composite, nine vintages. Genuinely global and genuinely cloud-free, which no commercial layer here manages.",
+    note: "10 m cloud-free annual composite, eight vintages from 2018. Genuinely global and genuinely cloud-free, which no commercial layer here manages.",
     // EOX require this wording verbatim, with the year of the composite substituted.
     attribution: 'EOxCloudless {YEAR} <a href="https://cloudless.eox.at">cloudless.eox.at</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data {YEAR})',
     licence: {
@@ -162,9 +162,13 @@ export const PROVIDERS: readonly Provider[] = [
     variant: {
       kind: "year",
       token: "{YEAR}",
-      // Measured: 2016 404s. Capabilities list 2017 through 2025 continuously.
+      // Measured: 2016 404s outright, and 2017 exists but covers EUROPE ONLY. Everywhere else
+      // it answers 200 with a 116-byte fully transparent PNG — note the PNG, even though the
+      // request asks for .jpg. That renders as an empty pane indistinguishable from a broken
+      // one, and because the status is 200 no tile-error handler can catch it, so 2017 is left
+      // out rather than shipped as a trap. 2018 onwards are genuinely global (verified at the
+      // Aral Sea, Lake Mead, Nebraska, the Congo Basin and the Sahara).
       values: [
-        { value: "2017", label: "2017" },
         { value: "2018", label: "2018" },
         { value: "2019", label: "2019" },
         { value: "2020", label: "2020" },
