@@ -4,10 +4,13 @@ import { onScopeDispose } from "vue";
 import MapDeck from "@/components/MapDeck.vue";
 import ModeSwitcher from "@/components/ModeSwitcher.vue";
 import { useAppState } from "@/composables/useAppState";
+import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useMapSync } from "@/composables/useMapSync";
 
 const { camera } = useAppState();
 const { onChange } = useMapSync();
+
+useKeyboardShortcuts();
 
 // The camera flows one way: sync group -> state. Nothing watches `camera` back into
 // applyCamera, because a delayed echo is the one feedback loop the sync group's synchronous

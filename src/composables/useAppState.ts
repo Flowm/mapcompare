@@ -47,6 +47,12 @@ const panes = ref<PaneLayer[]>(DEFAULT_PANE_LAYERS.slice(0, 2).map(clonePaneLaye
  */
 const remembered = ref<PaneLayer[]>(DEFAULT_PANE_LAYERS.map(clonePaneLayer));
 
+/** Divider position in swipe mode, as a fraction of deck width. */
+const swipe = ref(0.5);
+
+/** Which layer blink mode is currently showing. Not persisted: it is a transient gesture. */
+const blinkTopVisible = ref(true);
+
 /** Grows or shrinks `panes` to match the mode, restoring previous choices where possible. */
 function reconcilePanes(next: Mode): void {
   const wanted = paneCountFor(next);
@@ -72,11 +78,28 @@ export function useAppState() {
     camera,
     panes,
     paneCount: computed(() => paneCountFor(mode.value)),
+    swipe,
+    blinkTopVisible,
 
     setMode(next: Mode) {
       if (next === mode.value) return;
       reconcilePanes(next);
       mode.value = next;
+      // Entering blink always starts on the top pane, so the first press is a change.
+      if (next === "bl") blinkTopVisible.value = true;
+    },
+
+    setSwipe(position: number) {
+      swipe.value = position;
+    },
+
+    /** Blink shows all-or-nothing of the top pane; hold a key, see the other layer. */
+    setBlinkTopVisible(visible: boolean) {
+      blinkTopVisible.value = visible;
+    },
+
+    toggleBlink() {
+      blinkTopVisible.value = !blinkTopVisible.value;
     },
 
     setPaneLayer(index: number, layer: PaneLayer) {
