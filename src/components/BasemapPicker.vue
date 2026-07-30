@@ -9,7 +9,7 @@ import { PROVIDERS } from "@/lib/providers/registry";
 import type { ApiKeyName, PaneLayer, Provider } from "@/lib/providers/types";
 import { resolveVariant, variantValues } from "@/lib/providers/variants";
 
-const props = defineProps<{ layer: PaneLayer }>();
+const props = defineProps<{ layer: PaneLayer; align?: "left" | "right" }>();
 const emit = defineEmits<{ update: [layer: PaneLayer]; "open-keys": [key: ApiKeyName] }>();
 
 const { keys } = useApiKeys();

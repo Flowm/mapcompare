@@ -14,7 +14,18 @@ import { getProvider } from "@/lib/providers/registry";
 import type { PaneLayer } from "@/lib/providers/types";
 import type { SyncableMap } from "@/lib/syncGroup";
 
-const props = defineProps<{ index: number; layer: PaneLayer }>();
+const props = defineProps<{
+  index: number;
+  layer: PaneLayer;
+  /**
+   * Which side of the pane its chrome sits on.
+   *
+   * Load-bearing in swipe mode: the top pane is masked with clip-path, so anything placed on the
+   * hidden side is clipped away — including its attribution, which would strip a required legal
+   * credit rather than merely look untidy.
+   */
+  side?: "left" | "right";
+}>();
 
 const container = ref<HTMLDivElement>();
 const map = shallowRef<MapLibreMap>();
@@ -125,14 +136,13 @@ useResizeObserver(container, () => map.value?.resize());
          element itself, which would defeat inset-based sizing. -->
     <div ref="container" class="h-full w-full" />
 
-    <!-- Chips top-right, clear of the basemap picker that MapDeck places top-left. -->
-    <div v-if="provider" class="pointer-events-none absolute top-2 right-2 z-10 flex max-w-[60%] justify-end">
-      <div class="pointer-events-auto">
+    <!-- Chips and credit share the bottom corner on `side`, beneath the picker MapDeck places at
+         the top of the same side. Keeping them together on one side is what guarantees they stay
+         inside the visible region when the top pane is clipped. -->
+    <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="props.side === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
+      <div v-if="provider" class="pointer-events-auto">
         <PaneStatus :provider="provider" :variant="layer.variant" :failed-tiles="failed" />
       </div>
-    </div>
-
-    <div class="pointer-events-none absolute right-1 bottom-1 z-10 flex max-w-full justify-end">
       <PaneAttribution :style="appliedStyle" />
     </div>
 

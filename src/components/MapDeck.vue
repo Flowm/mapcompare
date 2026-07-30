@@ -55,6 +55,18 @@ const gridClass = computed(() => {
  * clip-path. Never size it instead: resizing changes the canvas, so MapLibre re-fits the same
  * camera to a different extent and the seam stops lining up.
  */
+/**
+ * Which side a pane's chrome lives on.
+ *
+ * In stacked modes the top pane is masked to the LEFT of the divider, so its picker, chips and
+ * credit all have to sit there too — anything on the right is clipped away, and losing the credit
+ * that way is a licensing failure rather than an untidy layout.
+ */
+function paneSide(index: number): "left" | "right" {
+  if (!isStacked(mode.value)) return "right";
+  return index === 0 ? "left" : "right";
+}
+
 function paneStyle(index: number) {
   if (!isStacked(mode.value)) return undefined;
   if (index === 0) return { zIndex: 1, clipPath: clipInsetFor(mode.value, swipe.value, blinkTopVisible.value) };
@@ -66,13 +78,12 @@ function paneStyle(index: number) {
   <div ref="deck" class="relative h-full w-full overflow-hidden">
     <div class="h-full w-full" :class="isStacked(mode) ? 'relative' : `bg-ink-700 grid gap-px ${gridClass}`">
       <div v-for="(pane, index) in panes" :key="index" :class="isStacked(mode) ? 'absolute inset-0' : 'relative min-h-0 min-w-0'" :style="paneStyle(index)">
-        <MapPane :index="index" :layer="pane" />
+        <MapPane :index="index" :layer="pane" :side="paneSide(index)" />
 
-        <!-- Hidden for the masked top pane in blink mode, where two stacked pickers would
-             otherwise overlap illegibly. -->
-        <div v-if="!isStacked(mode) || index === 0" class="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
+        <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
+        <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="paneSide(index) === 'left' ? 'justify-start' : 'justify-end'">
           <div class="pointer-events-auto">
-            <BasemapPicker :layer="pane" @update="setPaneLayer(index, $event)" @open-keys="emit('open-keys', $event)" />
+            <BasemapPicker :layer="pane" :align="paneSide(index)" @update="setPaneLayer(index, $event)" @open-keys="emit('open-keys', $event)" />
           </div>
         </div>
       </div>
@@ -80,10 +91,5 @@ function paneStyle(index: number) {
 
     <!-- Sibling of the clipped wrappers, not a child: inside one it would clip itself away. -->
     <SwipeDivider v-if="mode === 'sw'" :position="swipe" :deck="deck" @update:position="setSwipe" />
-
-    <!-- In blink mode the second pane's picker sits at the bottom, since its pane is masked. -->
-    <div v-if="mode === 'bl' && panes[1]" class="absolute inset-x-0 bottom-0 z-20 flex justify-start p-2">
-      <BasemapPicker :layer="panes[1]" @update="setPaneLayer(1, $event)" @open-keys="emit('open-keys', $event)" />
-    </div>
   </div>
 </template>
