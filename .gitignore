@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+*.local
+.DS_Store
+.env
+.env.*
+!.env.example
+.claude/*
+!.claude/launch.json

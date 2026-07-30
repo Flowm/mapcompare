@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/jetbrains-mono";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* Dark-only: this is an imagery viewer, and a light chrome fights the imagery for
+   attention. No theme toggle, so the palette is hardcoded and color-scheme is fixed. */
+@theme {
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* Chrome sits on top of imagery, so the surface scale is deliberately near-black
+     with low-alpha overlays rather than opaque panels. */
+  --color-ink-950: #05070a;
+  --color-ink-900: #0b0f14;
+  --color-ink-800: #141a22;
+  --color-ink-700: #1f2833;
+  --color-ink-600: #2d3947;
+  --color-ink-400: #64748b;
+  --color-ink-200: #cbd5e1;
+  --color-ink-50: #f8fafc;
+
+  --color-accent: #38bdf8;
+
+  /* Licence tiers — see lib/providers/types.ts LicenceTier */
+  --color-tier-open: #34d399;
+  --color-tier-licensed: #34d399;
+  --color-tier-terms: #fbbf24;
+  --color-tier-metered: #fbbf24;
+  --color-tier-restricted: #f87171;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-ink-50);
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+}
+
+/* MapLibre draws its own attribution control; we render our own so it survives the
+   clip-path used by swipe mode. Hide any that slips through. */
+.maplibregl-ctrl-attrib {
+  display: none;
+}
+
+.maplibregl-canvas:focus {
+  outline: none;
+}
