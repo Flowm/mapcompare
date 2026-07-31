@@ -3,6 +3,7 @@ import { useElementBounding } from "@vueuse/core";
 import { computed, ref } from "vue";
 
 import BasemapPicker from "@/components/BasemapPicker.vue";
+import BlinkControl from "@/components/BlinkControl.vue";
 import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
@@ -86,7 +87,8 @@ function paneStyle(index: number) {
       </div>
     </div>
 
-    <!-- Sibling of the clipped wrappers, not a child: inside one it would clip itself away. -->
+    <!-- Siblings of the clipped wrappers, not children: inside one they would clip themselves away. -->
     <SwipeDivider v-if="mode === 'sw'" :position="swipe" :deck="deck" @update:position="setSwipe" />
+    <BlinkControl v-if="mode === 'bl'" />
   </div>
 </template>

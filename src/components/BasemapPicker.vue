@@ -181,9 +181,16 @@ function showEverything() {
           <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches “{{ query }}”.</p>
         </div>
 
-        <!-- The way out to the wordy surface, and the only trace of what was filtered out. -->
-        <button type="button" class="border-ink-800 text-ink-400 hover:text-ink-50 shrink-0 border-t px-2.5 py-1.5 text-left text-[11px]" @click="showEverything">
-          <span v-if="gatedCount > 0">{{ gatedCount }} more need an API key — </span>open the layer manager →
+        <!-- The way out to the wordy surface, and the only trace of what was filtered out. One
+             line: the count is a nudge, not an explanation, and the manager does the explaining. -->
+        <button
+          type="button"
+          class="border-ink-800 text-ink-400 hover:text-ink-50 flex shrink-0 items-center gap-1.5 border-t px-2.5 py-1.5 text-[11px] whitespace-nowrap"
+          :title="gatedCount > 0 ? `${gatedCount} more layers need an API key` : 'Notes, licences and keys'"
+          @click="showEverything"
+        >
+          <span class="flex-1 text-left">Layer manager →</span>
+          <span v-if="gatedCount > 0" class="border-ink-700 rounded border px-1">+{{ gatedCount }} with a key</span>
         </button>
       </div>
     </Teleport>

@@ -33,7 +33,7 @@ const STACKED_MODES: Mode[] = ["sw", "bl"];
         class="rounded px-2 py-1 text-xs transition-colors"
         :class="mode === m ? 'bg-accent text-ink-950 font-medium' : 'text-ink-200 hover:bg-ink-800'"
         :aria-pressed="mode === m"
-        :title="m === 'sw' ? 'Swipe (s) — drag the divider' : 'Blink (b) — hold B to flip layers'"
+        :title="m === 'sw' ? 'Swipe (s) — drag the divider' : 'Blink (b) — hold B to peek, Space to flip'"
         @click="setMode(m)"
       >
         {{ MODE_LABELS[m] }}

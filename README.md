@@ -24,8 +24,9 @@ over the same street. Hence this.
 
 ## Features
 
-- **1–4 synced panes**, a **swipe curtain** with a pixel-exact seam, and **blink** (hold `B`) for
-  spotting subtle differences
+- **1–4 synced panes**, a **swipe curtain** with a pixel-exact seam, and **blink** for spotting
+  subtle differences — hold `B` to peek at the other layer, `Space` or the on-screen control to
+  stay on it
 - **~30 layers**: VersaTiles, Esri World Imagery, Esri Clarity, Esri Wayback (one dated snapshot
   per year back to 2014), Sentinel-2 cloudless 2018–2025, NASA GIBS daily, plus Mapbox, MapTiler,
   Stadia, ArcGIS and HERE when you supply a key
