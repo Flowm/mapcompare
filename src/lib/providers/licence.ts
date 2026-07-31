@@ -25,7 +25,9 @@ export const LICENCE_TIERS: Record<LicenceTier, LicenceTierInfo> = {
   },
   licensed: {
     label: "licensed",
-    severity: "ok",
+    // Warn, not ok. Nothing here is free to reuse: what you may do depends on the agreement you
+    // hold with the provider, so it belongs with `terms` and `metered` rather than with `open`.
+    severity: "warn",
     explanation: "You are using this under your own licence with the provider. Follow their terms.",
   },
   terms: {

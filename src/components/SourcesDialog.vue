@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 
+import { useDialogDismiss } from "@/composables/useDialogDismiss";
 import { BUILD_DATE, BUILD_SHA } from "@/env";
 import { sanitizeAttributionHtml } from "@/lib/attribution";
 import { licenceInfo } from "@/lib/providers/licence";
@@ -9,6 +10,7 @@ import { PROVIDERS } from "@/lib/providers/registry";
 
 const open = defineModel<boolean>("open", { required: true });
 const dialog = ref<HTMLDialogElement>();
+const dismiss = useDialogDismiss(dialog, () => (open.value = false));
 
 watch(open, (isOpen) => (isOpen ? dialog.value?.showModal() : dialog.value?.close()), { immediate: true });
 
@@ -25,6 +27,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
     class="border-ink-700 bg-ink-900 text-ink-50 backdrop:bg-ink-950/70 m-auto max-h-[85vh] w-[min(56rem,94vw)] overflow-y-auto rounded-lg border p-0 backdrop:backdrop-blur-sm"
     @close="open = false"
     @cancel="open = false"
+    @click="dismiss"
   >
     <div class="border-ink-700 bg-ink-900 sticky top-0 flex items-center justify-between border-b px-4 py-3">
       <h2 class="text-sm font-semibold">Sources &amp; licences</h2>

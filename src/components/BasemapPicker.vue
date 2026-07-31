@@ -1,32 +1,101 @@
 <script setup lang="ts">
-import { onClickOutside } from "@vueuse/core";
-import { computed, ref } from "vue";
+import { onClickOutside, useEventListener, useWindowSize } from "@vueuse/core";
+import { computed, nextTick, ref, watch } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
+import { useLayerPanel } from "@/composables/useLayerPanel";
+import { type Anchor, placePanel } from "@/lib/anchor";
 import { groupByOperator, providerStatuses } from "@/lib/providers/availability";
 import { licenceInfo } from "@/lib/providers/licence";
 import { PROVIDERS } from "@/lib/providers/registry";
-import type { ApiKeyName, PaneLayer, Provider } from "@/lib/providers/types";
+import type { PaneLayer, Provider } from "@/lib/providers/types";
 import { resolveVariant, variantValues } from "@/lib/providers/variants";
 
-const props = defineProps<{ layer: PaneLayer; align?: "left" | "right" }>();
-const emit = defineEmits<{ update: [layer: PaneLayer]; "open-keys": [key: ApiKeyName] }>();
+/**
+ * A pane's own layer switcher: the fastest path from "this pane" to "that layer".
+ *
+ * Two decisions carry the design, and both depend on LayerManager existing:
+ *
+ *   - One line per layer, no notes, no key instructions. The manager is where layers are
+ *     explained, so repeating any of it here would only make the panel taller.
+ *   - Layers that need an API key are LEFT OUT, not greyed. Everything listed is one click from
+ *     being on the map. That is only honest because the manager still lists the gated ones with
+ *     their notes and a way to add the key — the footer here says how many are waiting there.
+ *
+ * The panel is teleported to <body> and positioned from the trigger's viewport rect. Inside the
+ * pane it would be clipped: by `overflow-hidden`, by the neighbouring pane's chrome stacking over
+ * it, and in swipe mode by the top pane's `clip-path` erasing everything past the seam.
+ */
+
+const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "right" }>();
+const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
 const { keys } = useApiKeys();
+const { activePane, openPanel, focusPane } = useLayerPanel();
+
+const PANEL = { width: 260, maxHeight: 340 };
 
 const open = ref(false);
-const root = ref<HTMLElement>();
-onClickOutside(root, () => (open.value = false));
+const query = ref("");
+const trigger = ref<HTMLElement>();
+const panel = ref<HTMLElement>();
+const search = ref<HTMLInputElement>();
+
+const { width: viewportWidth, height: viewportHeight } = useWindowSize();
+const anchor = ref<Anchor>({ top: 0, left: 0, right: 0, bottom: 0 });
 
 const statuses = computed(() => providerStatuses(PROVIDERS, keys.value));
-const groups = computed(() => groupByOperator(statuses.value));
-const gatedCount = computed(() => statuses.value.filter((s) => !s.enabled).length);
+const available = computed(() => statuses.value.filter((s) => s.enabled));
+const gatedCount = computed(() => statuses.value.length - available.value.length);
+
+const groups = computed(() => {
+  const term = query.value.trim().toLowerCase();
+  const matching = term === "" ? available.value : available.value.filter((s) => `${s.provider.label} ${s.provider.operator}`.toLowerCase().includes(term));
+  return groupByOperator(matching);
+});
 
 const current = computed(() => PROVIDERS.find((p) => p.id === props.layer.providerId));
 const variants = computed(() => (current.value?.variant ? variantValues(current.value.variant) : []));
 const selectedVariant = computed(() => (current.value?.variant ? resolveVariant(current.value.variant, props.layer.variant, new Date()) : ""));
 
-const SEVERITY_CLASS = { ok: "text-tier-open", warn: "text-tier-terms", bad: "text-tier-restricted" } as const;
+const DOT_CLASS = { ok: "bg-tier-open", warn: "bg-tier-terms", bad: "bg-tier-restricted" } as const;
+
+const placement = computed(() => {
+  const { left, top, bottom, maxHeight } = placePanel(anchor.value, PANEL, { width: viewportWidth.value, height: viewportHeight.value }, props.align ?? "left");
+  return {
+    position: "fixed" as const,
+    width: `${PANEL.width}px`,
+    maxHeight: `${maxHeight}px`,
+    left: `${left}px`,
+    ...(top === undefined ? { bottom: `${bottom}px` } : { top: `${top}px` }),
+  };
+});
+
+function measure() {
+  const box = trigger.value?.getBoundingClientRect();
+  if (box) anchor.value = { top: box.top, left: box.left, right: box.right, bottom: box.bottom };
+}
+
+function toggle() {
+  // Picking a pane on the map is also what the manager should act on next.
+  focusPane(props.index);
+  open.value = !open.value;
+}
+
+watch(open, async (isOpen) => {
+  if (!isOpen) return;
+  measure();
+  query.value = "";
+  await nextTick();
+  search.value?.focus();
+});
+
+// The trigger moves whenever pane geometry changes, and the panel is anchored to where it was.
+useEventListener(window, "resize", measure);
+useEventListener(window, "keydown", (event: KeyboardEvent) => {
+  if (event.key === "Escape" && open.value) open.value = false;
+});
+onClickOutside(panel, () => (open.value = false), { ignore: [trigger] });
 
 function choose(provider: Provider) {
   // The old variant belonged to the old provider and would be meaningless here.
@@ -37,19 +106,28 @@ function choose(provider: Provider) {
 function pickVariant(event: Event) {
   emit("update", { providerId: props.layer.providerId, variant: (event.target as HTMLSelectElement).value });
 }
+
+function showEverything() {
+  openPanel();
+  open.value = false;
+}
 </script>
 
 <template>
-  <div ref="root" class="relative flex items-center gap-1.5">
+  <div class="flex items-center gap-1.5">
     <button
+      ref="trigger"
       type="button"
-      class="border-ink-600/70 bg-ink-950/85 text-ink-50 hover:bg-ink-800 max-w-[14rem] truncate rounded border px-2 py-1 text-left text-xs backdrop-blur transition-colors"
+      class="bg-ink-950/85 text-ink-50 hover:bg-ink-800 flex max-w-[14rem] items-center gap-1.5 rounded border px-2 py-1 text-xs backdrop-blur transition-colors"
+      :class="activePane === index ? 'border-accent/70' : 'border-ink-600/70'"
       :aria-expanded="open"
       aria-haspopup="listbox"
-      @click="open = !open"
+      @click="toggle"
     >
-      {{ current?.label ?? layer.providerId }}
-      <span class="text-ink-400">▾</span>
+      <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
+      <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="DOT_CLASS[licenceInfo(current.licence.tier).severity]" :title="licenceInfo(current.licence.tier).label" />
+      <span class="truncate">{{ current?.label ?? layer.providerId }}</span>
+      <span class="text-ink-400 shrink-0">▾</span>
     </button>
 
     <select
@@ -62,56 +140,52 @@ function pickVariant(event: Event) {
       <option v-for="value in variants" :key="value.value" :value="value.value">{{ value.label }}</option>
     </select>
 
-    <div
-      v-if="open"
-      class="border-ink-700 bg-ink-900/98 absolute top-full left-0 z-40 mt-1 max-h-[70vh] w-96 overflow-y-auto rounded border shadow-xl backdrop-blur"
-      role="listbox"
-    >
-      <p v-if="gatedCount > 0" class="border-ink-800 text-ink-400 border-b px-3 py-2 text-[11px]">
-        {{ gatedCount }} provider{{ gatedCount === 1 ? "" : "s" }} need an API key. They stay listed so you can see what they'd cost.
-      </p>
-
-      <div v-for="group in groups" :key="group.operator">
-        <p class="bg-ink-800/95 text-ink-400 sticky top-0 px-3 py-1 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.operator }}</p>
-
-        <!-- Unavailable providers are shown greyed rather than hidden. Hiding them would remove
-             the discovery this app exists for: knowing a layer exists, and what it would cost,
-             is most of the value. -->
-        <div v-for="entry in group.entries" :key="entry.provider.id" class="border-ink-800/60 border-b px-3 py-2 last:border-b-0" :class="entry.enabled ? 'hover:bg-ink-800' : ''">
-          <button
-            type="button"
-            class="block w-full text-left"
-            :class="entry.enabled ? '' : 'cursor-default'"
-            role="option"
-            :aria-selected="entry.provider.id === layer.providerId"
-            :aria-disabled="!entry.enabled"
-            @click="entry.enabled && choose(entry.provider)"
-          >
-            <span class="flex items-baseline justify-between gap-2">
-              <span class="text-xs font-medium" :class="entry.enabled ? 'text-ink-50' : 'text-ink-400'">
-                {{ entry.provider.label }}
-                <span v-if="entry.provider.id === layer.providerId" class="text-accent">·</span>
-              </span>
-              <span class="shrink-0 text-[10px]" :class="SEVERITY_CLASS[licenceInfo(entry.provider.licence.tier).severity]">
-                {{ licenceInfo(entry.provider.licence.tier).label }}
-              </span>
-            </span>
-            <span class="mt-0.5 block text-[11px] leading-snug" :class="entry.enabled ? 'text-ink-400' : 'text-ink-600'">{{ entry.provider.note }}</span>
-          </button>
-
-          <div v-if="entry.disabled" class="text-ink-400 mt-1.5 text-[11px] leading-snug">
-            <p>{{ entry.disabled.message }}</p>
-            <div class="mt-1 flex items-center gap-2">
-              <button type="button" class="border-ink-600 text-ink-200 hover:bg-ink-800 rounded border px-1.5 py-0.5 text-[10px]" @click="emit('open-keys', entry.disabled.key)">
-                Add key
-              </button>
-              <a v-if="entry.disabled.keyUrl" :href="entry.disabled.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent text-[10px] hover:underline">
-                Get one free ↗
-              </a>
-            </div>
-          </div>
+    <Teleport to="body">
+      <div
+        v-if="open"
+        ref="panel"
+        class="border-ink-700 bg-ink-900/98 z-40 flex flex-col overflow-hidden rounded-lg border shadow-2xl backdrop-blur"
+        :style="placement"
+        role="listbox"
+        :aria-label="`Layer for pane ${index + 1}`"
+      >
+        <div class="border-ink-800 shrink-0 border-b p-1.5">
+          <input
+            ref="search"
+            v-model="query"
+            type="search"
+            placeholder="Switch layer…"
+            class="bg-ink-950/60 text-ink-50 placeholder:text-ink-600 focus:border-accent w-full rounded border border-transparent px-2 py-1 text-xs focus:outline-none"
+          />
         </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div v-for="group in groups" :key="group.operator">
+            <p class="bg-ink-800/95 text-ink-400 sticky top-0 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.operator }}</p>
+
+            <button
+              v-for="entry in group.entries"
+              :key="entry.provider.id"
+              type="button"
+              class="hover:bg-ink-800 flex w-full items-center gap-2 px-2.5 py-1 text-left"
+              :class="entry.provider.id === layer.providerId ? 'bg-accent/10' : ''"
+              role="option"
+              :aria-selected="entry.provider.id === layer.providerId"
+              @click="choose(entry.provider)"
+            >
+              <span class="size-1.5 shrink-0 rounded-full" :class="DOT_CLASS[licenceInfo(entry.provider.licence.tier).severity]" />
+              <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.provider.label }}</span>
+            </button>
+          </div>
+
+          <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches “{{ query }}”.</p>
+        </div>
+
+        <!-- The way out to the wordy surface, and the only trace of what was filtered out. -->
+        <button type="button" class="border-ink-800 text-ink-400 hover:text-ink-50 shrink-0 border-t px-2.5 py-1.5 text-left text-[11px]" @click="showEverything">
+          <span v-if="gatedCount > 0">{{ gatedCount }} more need an API key — </span>open the layer manager →
+        </button>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>

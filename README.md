@@ -31,6 +31,8 @@ over the same street. Hence this.
   Stadia, ArcGIS and HERE when you supply a key
 - **Optional label overlay** from OpenFreeMap, drawn identically over every pane
 - **Licence, vintage, overzoom and missing-tile chips** per pane
+- **A layer manager** holding the whole catalogue, the licence notes, the API keys and the sources
+  table, with a one-line switcher on every pane for the everyday job
 - **Shareable URLs** — every comparison is a link — and preset locations chosen to expose
   provider differences
 - No account, no backend, no tracking
@@ -113,7 +115,8 @@ Three edges are worth stating outright:
   load", because MapLibre is not a Mapbox renderer. Their terms also require the Mapbox wordmark,
   which is why the descriptor carries a logo field.
 
-Every layer's credit is on the map at all times, and the full table is in **Sources**.
+Every layer's credit is on the map at all times, and the full table is in
+**Layers → Sources & licences**.
 
 ## Coverage gotchas
 
@@ -135,12 +138,14 @@ These are the things that make a pane look broken when it is working correctly:
 
 ## API keys
 
-Every key is optional. With none set the app still ships over twenty keyless layers; keyed
-providers appear greyed out with the reason shown.
+Every key is optional. With none set the app still ships over twenty keyless layers. Keyed
+providers stay listed in the layer manager, greyed out with the reason, so you can see what they
+would cost — the per-pane switchers leave them out, because everything they list is one click from
+being on the map.
 
-**Option 1 — the Settings panel.** Open **Keys** and paste one. It is stored in that browser only
-and takes effect immediately, with no rebuild. Your key overrides any the site was built with, so
-you can also blank a built-in key to stop spending someone else's quota.
+**Option 1 — in the app.** Open **Layers → API keys** and paste one. It is stored in that browser
+only and takes effect immediately, with no rebuild. Your key overrides any the site was built
+with, so you can also blank a built-in key to stop spending someone else's quota.
 
 **Option 2 — `.env`.** Copy `.env.example` to `.env.development` and fill in what you have. Each
 variable documents where to get the key and what the free tier is.
@@ -188,14 +193,18 @@ components → composables → src/lib (pure TypeScript) → nothing
 
 Everything testable lives in `src/lib/` with no Vue imports and colocated `*.test.ts`. The URL is
 the source of truth for the comparison; `localStorage` holds only API keys and small display
-preferences.
+preferences, including whether the layer manager is open.
 
-Three pieces carry most of the risk and most of the comments explaining why:
+Four pieces carry most of the risk and most of the comments explaining why:
 
 - **`lib/syncGroup.ts`** keeps every pane on one camera. It rests on a property verified in
   maplibre-gl v6's source: `jumpTo` fires its move events synchronously and unconditionally, so a
   plain re-entrancy guard is airtight. The same reasoning fails for `easeTo`/`flyTo`, which is why
   they are never used to propagate a camera. Unit-tested against a fake map, with no WebGL.
+- **`components/BasemapPicker.vue`** teleports its popover to `<body>` and positions it from the
+  trigger's viewport rect (`lib/anchor.ts`, unit-tested). Left inside the pane it would be clipped
+  three ways: by `overflow-hidden`, by the neighbouring pane's chrome, and in swipe mode by the top
+  pane's `clip-path`.
 - **`components/MapDeck.vue`** owns the only `v-for` over panes. Mode changes swap CSS, so the map
   instances survive grid ⇄ swipe ⇄ blink instead of being torn down and rebuilt.
 - **`src/maplibreWorker.ts`** sets maplibre's worker URL explicitly. Without it, raster tiles work
@@ -219,6 +228,6 @@ pull request and deploys `main` on merge. Build-time `VITE_*` keys come from rep
 
 ## Attribution
 
-Every visible layer is credited on the map at all times, and **Sources** lists each layer's exact
-credit, licence, measured max zoom and coverage. Map rendering by
+Every visible layer is credited on the map at all times, and **Layers → Sources & licences** lists
+each layer's exact credit, licence, measured max zoom and coverage. Map rendering by
 [MapLibre GL JS](https://maplibre.org/).

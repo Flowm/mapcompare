@@ -21,7 +21,14 @@ describe("LICENCE_TIERS", () => {
   it("marks non-commercial as the most severe", () => {
     expect(LICENCE_TIERS.restricted.severity).toBe("bad");
     expect(LICENCE_TIERS.open.severity).toBe("ok");
-    expect(LICENCE_TIERS.licensed.severity).toBe("ok");
+  });
+
+  it("reserves the clear severity for open licences alone", () => {
+    // `licensed` is not free reuse — it depends on your own agreement with the provider — so it
+    // warns like `terms` and `metered` rather than reading as safe.
+    for (const tier of ["licensed", "terms", "metered"] as const) {
+      expect(LICENCE_TIERS[tier].severity, tier).toBe("warn");
+    }
   });
 
   it("labels the restricted tier by what it means rather than by its key", () => {

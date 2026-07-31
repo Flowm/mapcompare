@@ -3,21 +3,21 @@ import { onScopeDispose, ref } from "vue";
 
 import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
+import LayerManager from "@/components/LayerManager.vue";
 import MapDeck from "@/components/MapDeck.vue";
 import ModeSwitcher from "@/components/ModeSwitcher.vue";
 import PresetMenu from "@/components/PresetMenu.vue";
 import ShareButton from "@/components/ShareButton.vue";
 import SourcesDialog from "@/components/SourcesDialog.vue";
-import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
+import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useMapSync } from "@/composables/useMapSync";
-import { PROVIDERS } from "@/lib/providers/registry";
 import type { ApiKeyName } from "@/lib/providers/types";
 
 const { camera, installHistoryListener } = useAppState();
 const { onChange, applyCamera } = useMapSync();
-const { sources } = useApiKeys();
+const { panelOpen, togglePanel } = useLayerPanel();
 
 useKeyboardShortcuts();
 
@@ -36,10 +36,6 @@ function openKeys(key?: ApiKeyName) {
   focusKey.value = key;
   keysOpen.value = true;
 }
-
-function gatedCount(): number {
-  return PROVIDERS.filter((p) => p.requiresKey && sources.value[p.requiresKey] === "none").length;
-}
 </script>
 
 <template>
@@ -53,16 +49,29 @@ function gatedCount(): number {
 
       <div class="ml-auto flex items-center gap-2">
         <span class="text-ink-400 font-mono text-[11px] tabular-nums"> {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }} </span>
-        <button type="button" class="border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800 rounded border px-2 py-1.5 text-xs" @click="sourcesOpen = true">Sources</button>
-        <button type="button" class="border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800 rounded border px-2 py-1.5 text-xs" @click="openKeys()">
-          Keys<span v-if="gatedCount() > 0" class="text-ink-400 ml-1">{{ gatedCount() }}</span>
+
+        <!-- One button, because everything about layers now lives behind it: the catalogue, the
+             licence notes, the API keys and the sources table. -->
+        <button
+          type="button"
+          class="rounded border px-2 py-1.5 text-xs transition-colors"
+          :class="panelOpen ? 'border-accent/70 bg-accent text-ink-950 font-medium' : 'border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800'"
+          :aria-pressed="panelOpen"
+          title="Layer manager"
+          @click="togglePanel"
+        >
+          Layers
         </button>
       </div>
     </header>
 
-    <main class="min-h-0 flex-1">
-      <MapDeck @open-keys="openKeys" />
-    </main>
+    <div class="flex min-h-0 flex-1">
+      <main class="min-h-0 flex-1">
+        <MapDeck />
+      </main>
+
+      <LayerManager v-if="panelOpen" @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+    </div>
 
     <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
     <SourcesDialog v-model:open="sourcesOpen" />

@@ -7,7 +7,6 @@ import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
 import { isStacked } from "@/lib/mode";
-import type { ApiKeyName } from "@/lib/providers/types";
 import { clipInsetFor } from "@/lib/swipe";
 
 /**
@@ -25,8 +24,6 @@ import { clipInsetFor } from "@/lib/swipe";
  *     v-for. That is the obvious structure and it silently destroys every map on each mode
  *     switch.
  */
-
-const emit = defineEmits<{ "open-keys": [key: ApiKeyName] }>();
 
 const { mode, panes, swipe, blinkTopVisible, setPaneLayer, setSwipe } = useAppState();
 
@@ -83,7 +80,7 @@ function paneStyle(index: number) {
         <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
         <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="paneSide(index) === 'left' ? 'justify-start' : 'justify-end'">
           <div class="pointer-events-auto">
-            <BasemapPicker :layer="pane" :align="paneSide(index)" @update="setPaneLayer(index, $event)" @open-keys="emit('open-keys', $event)" />
+            <BasemapPicker :index="index" :layer="pane" :align="paneSide(index)" @update="setPaneLayer(index, $event)" />
           </div>
         </div>
       </div>
