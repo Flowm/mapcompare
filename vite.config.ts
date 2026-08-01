@@ -42,11 +42,6 @@ export default defineConfig({
     // other chunk still trips the warning.
     chunkSizeWarningLimit: 1000,
     rolldownOptions: {
-      // Silence @vueuse/core's misplaced /* #__PURE__ */ annotation warning
-      onLog(level, log, handler) {
-        if (log.code === "INVALID_ANNOTATION" && log.id?.includes("@vueuse/core")) return;
-        handler(level, log);
-      },
       output: {
         codeSplitting: {
           // Deliberately no `src` catch-all group: it would fold app modules into a
