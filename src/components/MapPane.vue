@@ -10,12 +10,11 @@ import { useCamera } from "@/composables/useCamera";
 import { useDisplaySettings } from "@/composables/useDisplaySettings";
 import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
+import { ZOOM_LIMITS } from "@/lib/camera";
 import { getProvider } from "@/lib/providers/registry";
 import type { PaneLayer } from "@/lib/providers/types";
-import type { SyncableMap } from "@/lib/syncGroup";
 
 const props = defineProps<{
-  index: number;
   layer: PaneLayer;
   /**
    * Which side of the pane its chrome sits on.
@@ -70,11 +69,12 @@ onMounted(() => {
     // not a cosmetic one.
     attributionControl: false,
 
-    // Every pane gets identical limits. Never derive these from the provider's native zoom
+    // Every pane gets identical limits, taken from the module that owns the range so they cannot
+    // drift from what `moveCamera` clamps to. Never derive these from the provider's native zoom
     // range: a pane that clamps differently reports a different zoom back to the sync group
     // and the panes fight each other. Zoom disparity is a UI concern, not a camera one.
-    minZoom: 0,
-    maxZoom: 22,
+    minZoom: ZOOM_LIMITS.min,
+    maxZoom: ZOOM_LIMITS.max,
 
     // The sync group propagates exact zooms through jumpTo, which applies zoom snapping when
     // it is enabled. Snapping would quantise the pushed value and desync the panes, so it is
@@ -97,7 +97,10 @@ onMounted(() => {
   });
 
   map.value = instance;
-  unregister = registerPane(instance as unknown as SyncableMap);
+  // Declared plainly rather than cast. MapLibre's Map satisfies SyncableMap structurally, so a
+  // future maplibre release that changes `jumpTo` or `on`'s shape is a compile error here — which
+  // is the whole point of the seam. `as unknown as` silenced exactly that.
+  unregister = registerPane(instance);
 });
 
 onBeforeUnmount(() => {
@@ -129,7 +132,9 @@ watch(allowRotate, (enabled) => {
   } else {
     instance.dragRotate.disable();
     instance.touchPitch.disable();
-    if (instance.getBearing() !== 0 || instance.getPitch() !== 0) instance.jumpTo({ bearing: 0, pitch: 0 });
+    // Roll included: `CameraState` carries it and `clampCamera` normalises it, so a pane left
+    // rolled would stay rolled once the handlers that could undo it are gone.
+    if (instance.getBearing() !== 0 || instance.getPitch() !== 0 || instance.getRoll() !== 0) instance.jumpTo({ bearing: 0, pitch: 0, roll: 0 });
   }
 });
 
