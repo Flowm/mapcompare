@@ -9,7 +9,22 @@ import type { RasterSourceSpecification } from "maplibre-gl";
  */
 export type ApiKeyName = "VITE_MAPBOX_TOKEN" | "VITE_MAPTILER_KEY" | "VITE_STADIA_API_KEY" | "VITE_HERE_API_KEY" | "VITE_ARCGIS_API_KEY";
 
-export const API_KEY_NAMES: readonly ApiKeyName[] = ["VITE_MAPBOX_TOKEN", "VITE_MAPTILER_KEY", "VITE_STADIA_API_KEY", "VITE_HERE_API_KEY", "VITE_ARCGIS_API_KEY"];
+/**
+ * Derived from the union rather than written out beside it, because `readonly ApiKeyName[]` is
+ * satisfied by a SUBSET. `useApiKeys` iterates this list and nothing else, so a name added to the
+ * union and to `env.ts` but missed here produced exactly the failure the comment above says is
+ * impossible: a provider that compiles, ships, and is permanently gated behind a key it can never
+ * see. `Record<ApiKeyName, true>` cannot be short.
+ */
+const API_KEY_NAME_SET: Record<ApiKeyName, true> = {
+  VITE_MAPBOX_TOKEN: true,
+  VITE_MAPTILER_KEY: true,
+  VITE_STADIA_API_KEY: true,
+  VITE_HERE_API_KEY: true,
+  VITE_ARCGIS_API_KEY: true,
+};
+
+export const API_KEY_NAMES: readonly ApiKeyName[] = Object.keys(API_KEY_NAME_SET) as ApiKeyName[];
 
 /**
  * What you are allowed to do with the pixels. Drives the per-pane licence chip.

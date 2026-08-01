@@ -1,5 +1,7 @@
 import type { StyleSpecification } from "maplibre-gl";
 
+import { labelOverlayStyleUrl } from "@/lib/providers/registry";
+
 /**
  * Fetching and caching third-party style.json documents.
  *
@@ -41,10 +43,13 @@ export function clearStyleCache(): void {
 /**
  * The style the label overlay is extracted from.
  *
- * This is the same URL as the standalone OpenFreeMap Liberty basemap entry, so both share one
- * cached fetch: turning labels on while a Liberty pane is open costs nothing extra.
+ * Read from the registry entry rather than written out again here. It is BY DEFINITION the same URL
+ * as the standalone OpenFreeMap Liberty basemap, which is what lets both share one cached fetch —
+ * turning labels on while a Liberty pane is open costs nothing extra — and what lets
+ * `useResolvedStyle` recognise that pane and not label it twice. As two literals, a provider URL
+ * change would have broken both quietly.
  */
-export const LABEL_OVERLAY_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+export const LABEL_OVERLAY_STYLE_URL = labelOverlayStyleUrl();
 
 export function fetchLabelOverlayStyle(): Promise<StyleSpecification> {
   return fetchStyle(LABEL_OVERLAY_STYLE_URL);

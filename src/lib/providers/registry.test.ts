@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_PANE_LAYERS, getProvider, PROVIDER_IDS, PROVIDERS } from "./registry";
+import { DEFAULT_PANE_LAYERS, getProvider, LABEL_OVERLAY_PROVIDER_ID, labelOverlayStyleUrl, PROVIDER_IDS, PROVIDERS } from "./registry";
 import { API_KEY_NAMES } from "./types";
 
 /**
@@ -181,5 +181,35 @@ describe("default pane layers", () => {
     for (const layer of DEFAULT_PANE_LAYERS.slice(0, 2)) {
       expect(getProvider(layer.providerId)!.maxzoom, layer.providerId).toBeGreaterThanOrEqual(16);
     }
+  });
+});
+
+describe("the label overlay source", () => {
+  it("exists as a style provider, which is what api/styles.ts derives its URL from", () => {
+    const provider = getProvider(LABEL_OVERLAY_PROVIDER_ID);
+    expect(provider, LABEL_OVERLAY_PROVIDER_ID).toBeDefined();
+    expect(provider?.kind).toBe("style");
+    expect(labelOverlayStyleUrl()).toBe(provider?.kind === "style" ? provider.styleUrl : undefined);
+  });
+
+  it("is reachable as a basemap in its own right, so the two share one cached fetch", () => {
+    // If this entry were ever removed but the overlay kept, turning labels on would fetch a
+    // document no pane can show, and the suppression that stops double labels would never match.
+    expect(PROVIDER_IDS.has(LABEL_OVERLAY_PROVIDER_ID)).toBe(true);
+  });
+});
+
+describe("API_KEY_NAMES", () => {
+  it("lists every key the providers actually require", () => {
+    const required = new Set(PROVIDERS.flatMap((p) => (p.requiresKey ? [p.requiresKey] : [])));
+    for (const name of required) expect(API_KEY_NAMES, name).toContain(name);
+  });
+
+  it("is exhaustive over ApiKeyName, not merely a subset of it", () => {
+    // `readonly ApiKeyName[]` is satisfied by a short list, so the guard is the derivation itself:
+    // API_KEY_NAMES comes from a Record<ApiKeyName, true>, which cannot omit a member. This pins
+    // the count so a name added to the union without the record is caught here too.
+    expect(API_KEY_NAMES).toHaveLength(5);
+    expect(new Set(API_KEY_NAMES).size).toBe(API_KEY_NAMES.length);
   });
 });

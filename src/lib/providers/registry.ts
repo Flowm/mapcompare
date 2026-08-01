@@ -375,6 +375,25 @@ export function getProvider(id: string): Provider | undefined {
 }
 
 /**
+ * The provider whose style the label overlay is extracted from.
+ *
+ * Named here rather than duplicated as a second URL literal in `api/styles.ts`. The overlay IS this
+ * provider's symbol layers, so `useResolvedStyle` decides whether to suppress the overlay by
+ * comparing the resolved style URL against it. Two copies of the string meant a provider URL change
+ * would silently make that comparison false, and the Liberty pane would then draw every label twice
+ * with the two copies competing for placement — the exact thing the suppression exists to prevent.
+ */
+export const LABEL_OVERLAY_PROVIDER_ID = "openfreemap.liberty";
+
+export function labelOverlayStyleUrl(): string {
+  const provider = getProvider(LABEL_OVERLAY_PROVIDER_ID);
+  // Loud rather than silent: without it the label toggle is broken either way, and a registry guard
+  // test pins the invariant so this cannot reach a build.
+  if (provider?.kind !== "style") throw new Error(`${LABEL_OVERLAY_PROVIDER_ID} must exist as a style provider: the label overlay is extracted from its document`);
+  return provider.styleUrl;
+}
+
+/**
  * Seeds panes that have never been chosen, and backfills when the pane count grows.
  *
  * Panes 1 and 2 are both keyless, so a fresh clone with no .env renders a real comparison

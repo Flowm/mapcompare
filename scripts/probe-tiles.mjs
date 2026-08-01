@@ -110,8 +110,15 @@ function readRegistry() {
     // reads as absent silently turns documented patchiness back into a hard failure.
     const coverageNote = /coverageNote:\s*"/.test(body);
     const token = /token: "\{(\w+)\}"/.exec(body)?.[1];
-    const firstValue = /values: \[\s*\{ value: "([^"]+)"/.exec(body)?.[1] ?? /\{ value: "([^"]+)"/.exec(body)?.[1];
-    if (tile && tileSize && maxzoom) providers.push({ id, tile, tileSize, maxzoom, requiresKey, token, firstValue, coverageNote });
+    const variantKind = /variant: \{ kind: "(\w+)"/.exec(body)?.[1];
+    // The LAST declared value, because that is what the app shows. `defaultVariant` resolves
+    // "latest" to `values.at(-1)`, and the registry keeps values oldest-first — so probing the
+    // first one verified a vintage nobody sees while leaving the default unchecked. EOX was
+    // verified at 2018 and shipped defaulting to 2025; Wayback at a 2014 release and shipped on a
+    // 2024 one.
+    const values = [...body.matchAll(/\{ value: "([^"]+)"/g)].map((m) => m[1]);
+    const defaultValue = values.at(-1);
+    if (tile && tileSize && maxzoom) providers.push({ id, tile, tileSize, maxzoom, requiresKey, token, variantKind, defaultValue, coverageNote });
   }
   return providers;
 }
@@ -121,8 +128,11 @@ function buildUrl(p, z, point) {
   let url = p.tile.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
   if (p.requiresKey) url = url.replaceAll("{KEY}", process.env[p.requiresKey] ?? "");
   if (p.token) {
-    // Dates are resolved to yesterday UTC; fixed lists use their first declared value.
-    const value = p.token === "DATE" ? new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) : (p.firstValue ?? "");
+    // Keyed off `kind`, not off the token's name: a date provider using some token other than
+    // {DATE} used to fall through to the fixed-list branch, produce an empty substitution and fail
+    // for a reason that had nothing to do with the endpoint.
+    // Both branches mirror `variants.defaultVariant`, so what is probed is what the app requests.
+    const value = p.variantKind === "date" ? new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) : (p.defaultValue ?? "");
     url = url.replaceAll(`{${p.token}}`, value);
   }
   return url;
