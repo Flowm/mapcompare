@@ -11,19 +11,19 @@ repos:
     hooks:
       - id: lint-fix
         name: lint:fix
-        entry: pnpm run lint:fix
+        entry: pnpm lint:fix
         language: system
         types_or: [ts, javascript, vue, json, css]
         pass_filenames: false
       - id: type-check
         name: type-check
-        entry: pnpm run type-check
+        entry: pnpm type-check
         language: system
         types_or: [ts, vue]
         pass_filenames: false
       - id: test
         name: test
-        entry: pnpm run test
+        entry: pnpm test
         language: system
         types_or: [ts, vue]
         pass_filenames: false

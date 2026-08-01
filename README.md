@@ -167,21 +167,18 @@ restriction** in your provider's dashboard, which you should set. Shared links n
 mise trust && mise install   # toolchain: node, pnpm, prek
 mise setup                   # install the git hooks
 pnpm install
-pnpm run dev
+pnpm dev
 ```
 
-Scripts are invoked as `pnpm run <script>`, not `pnpm <script>`, so a pnpm builtin of the same
-name can never shadow a project script.
-
-| Script                               |                                                      |
-| ------------------------------------ | ---------------------------------------------------- |
-| `pnpm run dev`                       | Vite dev server                                      |
-| `pnpm run build` / `preview`         | Production build and preview it                      |
-| `pnpm run test`                      | vitest                                               |
-| `pnpm run lint` / `lint:fix`         | oxlint + oxfmt + vue-tsc                             |
-| `pnpm run probe-tiles`               | Re-check the registry against the live tile services |
-| `pnpm run fetch-wayback`             | Regenerate the Esri Wayback date → release mapping   |
-| `pnpm run deploy` / `deploy:preview` | Cloudflare Workers                                   |
+| Script                           |                                                      |
+| -------------------------------- | ---------------------------------------------------- |
+| `pnpm dev`                       | Vite dev server                                      |
+| `pnpm build` / `preview`         | Production build and preview it                      |
+| `pnpm test`                      | vitest                                               |
+| `pnpm lint` / `lint:fix`         | oxlint + oxfmt + vue-tsc                             |
+| `pnpm probe-tiles`               | Re-check the registry against the live tile services |
+| `pnpm fetch-wayback`             | Regenerate the Esri Wayback date → release mapping   |
+| `pnpm deploy` / `deploy:preview` | Cloudflare Workers                                   |
 
 ## Architecture
 
@@ -217,9 +214,9 @@ the browser: a ceiling set too high blanks the pane, and a wrong tile size rende
 imagery a whole zoom level off, which in a comparison tool produces confidently wrong conclusions.
 
 1. Add the entry to `src/lib/providers/registry.ts`.
-2. Run `pnpm run probe-tiles`. It checks two points, one deliberately non-European, and fails on a
+2. Run `pnpm probe-tiles`. It checks two points, one deliberately non-European, and fails on a
    wrong tile size, an unreachable ceiling, or a no-data placeholder served as a 200.
-3. Run `pnpm run test`. The registry guard tests pin the invariants.
+3. Run `pnpm test`. The registry guard tests pin the invariants.
 
 ## Deploy
 
