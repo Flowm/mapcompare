@@ -7,8 +7,7 @@ import { useLocalStorage } from "@vueuse/core";
  */
 const resampling = useLocalStorage<"linear" | "nearest">("mapcompare:resampling", "linear");
 const allowRotate = useLocalStorage("mapcompare:allow-rotate", false);
-const showCrosshair = useLocalStorage("mapcompare:crosshair", true);
 
 export function useDisplaySettings() {
-  return { resampling, allowRotate, showCrosshair };
+  return { resampling, allowRotate };
 }

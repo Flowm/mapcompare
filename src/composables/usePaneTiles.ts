@@ -19,7 +19,6 @@ import { onScopeDispose, ref, type ShallowRef, watch } from "vue";
  */
 export function usePaneTiles(map: ShallowRef<MapLibreMap | undefined>) {
   const failed = ref(0);
-  const loading = ref(false);
 
   let subscriptions: { unsubscribe: () => void }[] = [];
 
@@ -42,8 +41,6 @@ export function usePaneTiles(map: ShallowRef<MapLibreMap | undefined>) {
           const status = (event as { error?: { status?: number } }).error?.status;
           if (typeof status === "number" && status >= 400) failed.value += 1;
         }),
-        instance.on("dataloading", () => (loading.value = true)),
-        instance.on("idle", () => (loading.value = false)),
         // A style swap replaces every source, so the previous layer's failures no longer describe
         // what is on screen.
         instance.on("styledata", () => (failed.value = 0)),
@@ -54,5 +51,5 @@ export function usePaneTiles(map: ShallowRef<MapLibreMap | undefined>) {
 
   onScopeDispose(detach);
 
-  return { failed, loading };
+  return { failed };
 }

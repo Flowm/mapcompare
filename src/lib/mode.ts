@@ -44,9 +44,10 @@ export function isStacked(mode: Mode): boolean {
  * inside MapDeck's template block whose `default` arm meant a new mode silently rendered as one
  * pane instead of failing to build.
  *
- * `g3` gets three equal tracks rather than a 2-over-1 layout on purpose: pointer offsets are
- * mirrored between panes without projecting coordinates, which only holds while panes match in
- * size.
+ * `g3` gets three equal tracks rather than a 2-over-1 layout on purpose. Every pane shares one
+ * camera, so panes of different sizes show different extents of it — and a comparison between two
+ * unequal windows onto the same view is exactly the kind of quiet dishonesty this app exists to
+ * avoid.
  */
 export function layoutFor(mode: Mode): string {
   switch (mode) {

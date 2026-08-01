@@ -67,9 +67,5 @@ export function useApiKeys() {
       const { [name]: _removed, ...rest } = overrides.value;
       overrides.value = rest;
     },
-
-    clearAll() {
-      overrides.value = {};
-    },
   };
 }

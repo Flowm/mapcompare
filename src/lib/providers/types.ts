@@ -1,5 +1,3 @@
-import type { RasterSourceSpecification } from "maplibre-gl";
-
 /**
  * Names of the `VITE_*` vars the registry may require.
  *
@@ -143,6 +141,3 @@ export interface PaneLayer {
   /** Undefined when the provider has no `VariantSpec`. */
   variant?: string;
 }
-
-/** The subset of MapLibre's raster source spec the builder produces. */
-export type BuiltRasterSource = RasterSourceSpecification;

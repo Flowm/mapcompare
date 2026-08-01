@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useElementBounding } from "@vueuse/core";
 import { computed, ref } from "vue";
 
 import BasemapPicker from "@/components/BasemapPicker.vue";
@@ -29,7 +28,6 @@ import { clipInsetFor, paneSide } from "@/lib/swipe";
 const { mode, panes, swipe, blinkTopVisible, setPaneLayer, setSwipe } = useAppState();
 
 const deck = ref<HTMLElement>();
-useElementBounding(deck);
 
 const gridClass = computed(() => layoutFor(mode.value));
 

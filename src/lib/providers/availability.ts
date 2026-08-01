@@ -50,11 +50,6 @@ export function providerStatuses(providers: readonly Provider[], keys: ApiKeys):
   return providers.map((p) => providerStatus(p, keys));
 }
 
-/** How many providers are held back purely for want of a key. Drives the picker banner. */
-export function countGated(providers: readonly Provider[], keys: ApiKeys): number {
-  return providers.filter((p) => !providerStatus(p, keys).enabled).length;
-}
-
 /**
  * Groups providers by operator for the picker, preserving registry order within each group
  * and ordering the groups by first appearance. Enabled and disabled entries stay

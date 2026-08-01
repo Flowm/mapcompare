@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countGated, groupByOperator, hasKey, providerStatus, providerStatuses } from "./availability";
+import { groupByOperator, hasKey, providerStatus, providerStatuses } from "./availability";
 import { getProvider, PROVIDERS } from "./registry";
 
 const mapbox = getProvider("mapbox.satellite")!;
@@ -63,31 +63,6 @@ describe("providerStatuses", () => {
   it("preserves registry order", () => {
     const ids = providerStatuses(PROVIDERS, {}).map((s) => s.provider.id);
     expect(ids).toStrictEqual(PROVIDERS.map((p) => p.id));
-  });
-});
-
-describe("countGated", () => {
-  it("counts every keyed provider when no keys are set", () => {
-    const keyed = PROVIDERS.filter((p) => p.requiresKey).length;
-    expect(countGated(PROVIDERS, {})).toBe(keyed);
-    expect(keyed).toBeGreaterThan(0);
-  });
-
-  it("drops as keys arrive", () => {
-    const none = countGated(PROVIDERS, {});
-    expect(countGated(PROVIDERS, { VITE_MAPBOX_TOKEN: "pk" })).toBe(none - 1);
-  });
-
-  it("counts both MapTiler and nothing else for a single MapTiler key", () => {
-    const none = countGated(PROVIDERS, {});
-    const withMaptiler = countGated(PROVIDERS, { VITE_MAPTILER_KEY: "k" });
-    const maptilerProviders = PROVIDERS.filter((p) => p.requiresKey === "VITE_MAPTILER_KEY").length;
-    expect(none - withMaptiler).toBe(maptilerProviders);
-  });
-
-  it("reaches zero once every key is present", () => {
-    const all = Object.fromEntries(PROVIDERS.filter((p) => p.requiresKey).map((p) => [p.requiresKey!, "value"]));
-    expect(countGated(PROVIDERS, all)).toBe(0);
   });
 });
 
