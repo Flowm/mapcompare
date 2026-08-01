@@ -17,5 +17,13 @@
     "browser": true,
     "vue": true
   },
-  "ignorePatterns": ["dist", "scripts"]
+  "ignorePatterns": ["dist"],
+  "overrides": [
+    {
+      "files": ["scripts/**"],
+      "rules": {
+        "no-await-in-loop": "off"
+      }
+    }
+  ]
 }
