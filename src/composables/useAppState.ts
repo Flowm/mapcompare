@@ -196,23 +196,13 @@ export function useAppState() {
     },
 
     /**
-     * Jumps to a preset, adopting its suggested pane pairing when it has one. Presets exist to
-     * make a specific point, and the pairing is usually half of it.
+     * Jumps to a preset. This moves the camera and touches nothing else: the layers on screen
+     * are the comparison the user built, and taking that comparison somewhere else is the whole
+     * job of the place picker. Bearing, pitch and roll reset so the arrival view is the one the
+     * preset's zoom was chosen for.
      */
     applyPreset(preset: Preset, moveCamera: (camera: CameraState) => void) {
       const next: CameraState = { center: [preset.lon, preset.lat], zoom: preset.zoom, bearing: 0, pitch: 0, roll: 0 };
-      if (preset.suggests) {
-        // Suggested pairings are always two layers, so ensure a two-pane mode to show them.
-        if (paneCountFor(mode.value) < 2) {
-          reconcilePanes("g2");
-          mode.value = "g2";
-        }
-        preset.suggests.forEach((layer, i) => {
-          if (i >= panes.value.length) return;
-          panes.value[i] = clonePaneLayer(layer);
-          remembered.value[i] = clonePaneLayer(layer);
-        });
-      }
       camera.value = next;
       moveCamera(next);
     },
