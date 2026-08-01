@@ -58,13 +58,16 @@ function zoomToNative() {
       {{ shortZoomFit(fit) }}
     </span>
 
+    <!-- Refused, not missing. This counts 401/403/429/5xx, which in practice means a bad key or a
+         rate limit; coverage gaps arrive as 404s, which MapLibre never reports (see usePaneTiles).
+         Labelling these "missing" would promise a coverage warning the app cannot give. -->
     <span
       v-if="failedTiles > 0"
       class="rounded border px-1.5 py-1 backdrop-blur"
-      :class="SEVERITY_CLASS.warn"
-      :title="provider.coverageNote ?? 'The provider returned no imagery for some tiles in view.'"
+      :class="SEVERITY_CLASS.bad"
+      title="The provider refused these tile requests — usually a rejected API key, a rate limit or an outage. Tiles absent for want of coverage are not counted."
     >
-      {{ failedTiles }} tiles missing
+      {{ failedTiles }} tiles refused
     </span>
   </div>
 </template>

@@ -2,22 +2,20 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import { onScopeDispose, ref, type ShallowRef, watch } from "vue";
 
 /**
- * Counts failed tile requests for one pane.
- *
- * KNOWN GAP, and a big one: this does not see 404s, which are most missing tiles. MapLibre
- * swallows them deliberately — `SourceCache._loadTile` marks the tile errored and only fires the
- * error event `if (err.status !== 404)` — so zooming past a provider's coverage produces a blank
- * pane and a count of zero. What survives to this counter is the other failures: 403 on a rejected
+ * Counts tile requests the provider REFUSED for this pane — 401 and 403 on a bad or unauthorised
  * key, 429 on a rate limit, 5xx from the service.
  *
- * Two things stand in for it until that is fixed. Every `maxzoom` in the registry is set where
- * imagery genuinely exists rather than where the server stops saying no, so the common case is
- * upscaling with the zoom-fit badge rather than a 404 at all; and `pnpm run probe-tiles` re-checks
- * that against the live services.
+ * That list is the whole scope, and it is narrower than it sounds. This deliberately does not
+ * report missing coverage, because it cannot: MapLibre swallows 404 tile errors outright
+ * (`SourceCache._loadTile` fires the error event only `if (err.status !== 404)`), so a pane past
+ * its provider's coverage reports zero. Nor can it see the worst shape, a 200 carrying a picture
+ * of nothing — EOX answers outside its coverage with a transparent PNG, Esri with a grey "Map data
+ * not yet available" JPEG, and both are valid images. `pnpm run probe-tiles` is what catches those,
+ * and the registry's measured `maxzoom` values are what keep users away from them.
  *
- * The third shape is worse than either and is not detectable here at all: a 200 carrying a picture
- * of nothing. EOX answers outside its coverage with a transparent PNG, and Esri with a grey "Map
- * data not yet available" JPEG. Only the probe script catches those.
+ * What is left is still worth having: a wrong key pasted into Settings is otherwise a black pane
+ * with no explanation, since the missing-key overlay only covers a key that is absent. Verified
+ * against a deliberately invalid Mapbox token: four 401s, four counted.
  */
 export function usePaneTiles(map: ShallowRef<MapLibreMap | undefined>) {
   const failed = ref(0);
