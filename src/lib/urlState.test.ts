@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MODES } from "./mode";
 import { paneCountFor } from "./mode";
 import type { PaneLayer } from "./providers/types";
+import { fractionFromPointer, MIN_INSET } from "./swipe";
 import { type AppStateSnapshot, canonicalise, decodeState, encodeState } from "./urlState";
 
 const IDS = new Set(["versatiles.satellite", "esri.imagery", "eox.s2cloudless", "esri.wayback"]);
@@ -153,9 +154,24 @@ describe("canonicalise", () => {
     expect(canon({ ...FALLBACK, camera: { ...FALLBACK.camera, roll: 30 } }).camera.roll).toBe(0);
   });
 
-  it("clamps the divider into 0..1", () => {
-    expect(canon({ ...FALLBACK, swipe: 5 }).swipe).toBe(1);
-    expect(canon({ ...FALLBACK, swipe: -5 }).swipe).toBe(0);
+  it("clamps the divider to the range swipe.ts owns, not to 0..1", () => {
+    // A shared link must not be able to reach a position the divider cannot be dragged back from.
+    expect(canon({ ...FALLBACK, swipe: 5 }).swipe).toBe(1 - MIN_INSET);
+    expect(canon({ ...FALLBACK, swipe: -5 }).swipe).toBe(MIN_INSET);
+    expect(canon({ ...FALLBACK, swipe: 0 }).swipe).toBe(MIN_INSET);
+    expect(canon({ ...FALLBACK, swipe: 1 }).swipe).toBe(1 - MIN_INSET);
+  });
+
+  it("agrees with the pointer path, so both routes into `swipe` land in the same range", () => {
+    const rect = { left: 0, width: 1000 };
+    for (const [pointerX, url] of [
+      [0, 0],
+      [1000, 1],
+      [-50, -5],
+      [1500, 5],
+    ] as const) {
+      expect(canon({ ...FALLBACK, swipe: url }).swipe).toBe(fractionFromPointer(pointerX, rect));
+    }
   });
 
   it("normalises an absent variant rather than storing undefined", () => {

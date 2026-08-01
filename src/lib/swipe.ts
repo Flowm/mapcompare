@@ -16,20 +16,27 @@ import type { Mode } from "./mode";
 /** Keeps a sliver of each pane visible so the divider can always be grabbed back. */
 export const MIN_INSET = 0.02;
 
+/**
+ * The only legal range for a divider position, and the one place that decides it.
+ *
+ * Every route into `swipe` goes through here — the pointer, the keyboard, and the URL codec. The
+ * URL used to clamp to `[0, 1]` on its own, which let `?sw=0` mask the top pane completely and put
+ * the handle at `left: 0%`, half of it off-screen: a shared link that could not be dragged back.
+ */
+export function clampSwipe(value: number, minInset: number = MIN_INSET): number {
+  if (Number.isNaN(value)) return 0.5;
+  return Math.min(1 - minInset, Math.max(minInset, value));
+}
+
 /** Divider position as a fraction of deck width, clamped away from both edges. */
 export function fractionFromPointer(clientX: number, rect: { left: number; width: number }, minInset: number = MIN_INSET): number {
   if (rect.width <= 0) return 0.5;
   const raw = (clientX - rect.left) / rect.width;
-  return clamp(raw, minInset);
+  return clampSwipe(raw, minInset);
 }
 
 export function nudge(position: number, delta: number, minInset: number = MIN_INSET): number {
-  return clamp(position + delta, minInset);
-}
-
-function clamp(value: number, minInset: number): number {
-  if (Number.isNaN(value)) return 0.5;
-  return Math.min(1 - minInset, Math.max(minInset, value));
+  return clampSwipe(position + delta, minInset);
 }
 
 /**

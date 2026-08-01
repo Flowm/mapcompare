@@ -1,6 +1,7 @@
-import { clampCamera, type CameraState } from "./camera";
+import { clampCamera, type CameraState, ZOOM_LIMITS } from "./camera";
 import { isMode, type Mode, paneCountFor } from "./mode";
 import type { PaneLayer } from "./providers/types";
+import { clampSwipe } from "./swipe";
 
 /**
  * The URL codec. Every comparison is a link.
@@ -33,9 +34,6 @@ export interface AppStateSnapshot {
 /** Wire precision. lat/lon to 5 dp is ~1 m, which is finer than anyone can share meaningfully. */
 const PRECISION = { zoom: 2, lngLat: 5, angle: 1 } as const;
 
-const MIN_ZOOM = 0;
-const MAX_ZOOM = 22;
-
 function round(value: number, digits: number): number {
   return Number(value.toFixed(digits));
 }
@@ -46,7 +44,7 @@ function round(value: number, digits: number): number {
  * the only sense that matters.
  */
 export function canonicalise(state: AppStateSnapshot, defaults: readonly PaneLayer[]): AppStateSnapshot {
-  const clamped = clampCamera(state.camera, MIN_ZOOM, MAX_ZOOM);
+  const clamped = clampCamera(state.camera, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
   const wanted = paneCountFor(state.mode);
 
   const panes: PaneLayer[] = [];
@@ -68,7 +66,9 @@ export function canonicalise(state: AppStateSnapshot, defaults: readonly PaneLay
       roll: 0,
     },
     panes,
-    swipe: Math.min(1, Math.max(0, round(state.swipe, 3))),
+    // Delegated, not reimplemented: `swipe.ts` owns what a divider position may legally be, the
+    // same way `camera.ts` owns the camera's ranges just above.
+    swipe: round(clampSwipe(state.swipe), 3),
     labels: state.labels,
   };
 }

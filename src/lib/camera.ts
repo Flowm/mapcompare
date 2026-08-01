@@ -64,6 +64,15 @@ export function normaliseBearing(bearing: number): number {
   return wrapped > 180 ? wrapped - 360 : wrapped;
 }
 
+/**
+ * The zoom range every pane is pinned to, and the range any camera entering the app is clamped to.
+ *
+ * One owner, because two would diverge: every pane must use identical limits or a pane that clamps
+ * differently reports a different zoom back to the sync group and the panes fight each other. Never
+ * derive these from a provider's native range — zoom disparity is a UI concern, not a camera one.
+ */
+export const ZOOM_LIMITS = { min: 0, max: 22 } as const;
+
 /** Clamps a camera into ranges MapLibre will accept, so a hand-edited URL cannot wedge it. */
 export function clampCamera(camera: CameraState, minZoom: number, maxZoom: number): CameraState {
   const [lng, lat] = camera.center;
