@@ -17,20 +17,35 @@
  * Redirects are followed: Esri Wayback answers 301 for most tiles, pointing at whichever
  * release last changed that tile, which browsers follow transparently.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 /**
- * Two probe points, both required to pass for a provider claiming global coverage.
+ * Three probe points, chosen so that each catches a different way "global" turns out to be a lie.
  *
- * One European point is not enough, and trusting it cost real debugging time: Sentinel-2
+ * One European point is not enough, and trusting it cost real debugging time twice. Sentinel-2
  * cloudless 2017 serves Amsterdam happily and answers every non-European tile with a 116-byte
- * fully transparent PNG — a 200 response, so nothing upstream can treat it as an error. A
- * second, deliberately non-European point is what catches that class of partial coverage.
+ * transparent PNG. Esri World Imagery serves Amsterdam to z20 and hands Tokyo, Munich, Dubai and
+ * Sao Paulo a grey "Map data not yet available" tile at the same zoom. Neither is visible from
+ * Amsterdam, and both arrive as a 200.
+ *
+ * Tokyo is the load-bearing one: a major city on the other side of the planet, where any layer
+ * calling itself global must have real imagery at its declared ceiling. The Aral Sea is remote
+ * on purpose — high-resolution imagery genuinely thins out over wilderness, so a gap there is
+ * only a failure for a provider that has not declared a `coverageNote`.
  */
 const POINTS = [
   { lat: 52.373, lon: 4.893, name: "Amsterdam" },
-  { lat: 43.7681, lon: 59.0219, name: "Aral Sea" },
+  { lat: 35.69, lon: 139.7, name: "Tokyo" },
+  { lat: 43.7681, lon: 59.0219, name: "Aral Sea", remote: true },
 ];
+
+/**
+ * Deep Pacific, thousands of kilometres from any land. Nothing here is worth imaging at high
+ * zoom, so whatever a provider returns over this point at a given zoom IS its no-data response
+ * — which is how the grey Esri tile gets recognised without hardcoding anyone's bytes.
+ */
+const CONTROL = { lat: -10, lon: -150, name: "mid-Pacific" };
 
 /** Low enough that every globally-scoped layer must have data at all probe points. */
 const COVERAGE_ZOOM = 8;
@@ -91,9 +106,12 @@ function readRegistry() {
     const tileSize = Number(/tileSize: (\d+)/.exec(body)?.[1]);
     const maxzoom = Number(/maxzoom: (\d+)/.exec(body)?.[1]);
     const requiresKey = /requiresKey: "(\w+)"/.exec(body)?.[1];
+    // `\s*` because the formatter wraps a long note onto its own line, and a coverageNote that
+    // reads as absent silently turns documented patchiness back into a hard failure.
+    const coverageNote = /coverageNote:\s*"/.test(body);
     const token = /token: "\{(\w+)\}"/.exec(body)?.[1];
     const firstValue = /values: \[\s*\{ value: "([^"]+)"/.exec(body)?.[1] ?? /\{ value: "([^"]+)"/.exec(body)?.[1];
-    if (tile && tileSize && maxzoom) providers.push({ id, tile, tileSize, maxzoom, requiresKey, token, firstValue });
+    if (tile && tileSize && maxzoom) providers.push({ id, tile, tileSize, maxzoom, requiresKey, token, firstValue, coverageNote });
   }
   return providers;
 }
@@ -110,7 +128,8 @@ function buildUrl(p, z, point) {
   return url;
 }
 
-async function probe(url) {
+/** One retry, because a dropped connection otherwise reads exactly like "no coverage here". */
+async function probe(url, attempt = 0) {
   try {
     const res = await fetch(url, { redirect: "follow", headers: { "User-Agent": "mapcompare-probe" } });
     if (!res.ok) return { status: res.status };
@@ -119,10 +138,29 @@ async function probe(url) {
     // rather than imagery. It arrives as a 200, so only the bytes give it away.
     const isPng = buf.subarray(0, 8).toString("hex") === "89504e470d0a1a0a";
     const placeholder = buf.length < 1000 || (isPng && /\.jpe?g(\?|$)/i.test(url));
-    return { status: res.status, size: imageSize(buf), bytes: buf.length, placeholder };
+    // The hash is what catches the third and nastiest no-data shape: a full-size, perfectly
+    // valid image that is the SAME image everywhere. See the identical-bytes check below.
+    return { status: res.status, size: imageSize(buf), bytes: buf.length, placeholder, hash: createHash("sha1").update(buf).digest("hex") };
   } catch (err) {
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return probe(url, 1);
+    }
     return { status: 0, error: String(err) };
   }
+}
+
+/**
+ * Whether a 200 response is actually a picture of nothing.
+ *
+ * Three shapes, in rising order of nastiness: a tiny body, a PNG where the URL asked for a JPEG,
+ * and — the one that hid for a while — a valid full-size image byte-identical to what the same
+ * provider serves over open ocean at the same zoom. Land cannot legitimately look like the
+ * mid-Pacific, so a hash match is proof of a placeholder, whatever the status code says.
+ */
+function isNoData(result, controlHash) {
+  if (result.status !== 200) return false;
+  return result.placeholder || (controlHash !== undefined && result.hash === controlHash);
 }
 
 const providers = readRegistry();
@@ -153,23 +191,54 @@ for (const p of providers) {
   //    have something everywhere at z8. This is the check that separates a genuine coverage gap
   //    (Sentinel-2 cloudless 2017 outside Europe) from the ordinary sparsity of high-resolution
   //    imagery, which only shows up near a provider's ceiling.
+  const lowControl = await probe(buildUrl(p, COVERAGE_ZOOM, CONTROL));
   for (const point of POINTS) {
     const low = await probe(buildUrl(p, COVERAGE_ZOOM, point));
     if (low.status !== 200) errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns ${low.status} — no coverage where the registry implies global reach`);
-    else if (low.placeholder)
+    else if (isNoData(low, lowControl.hash))
       errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns a ${low.bytes}-byte no-data placeholder, not imagery — a 200, so no error handler can see it`);
   }
 
-  // 2. The declared ceiling and tile size, checked at the primary point. A ceiling set too high
-  //    makes MapLibre request tiles that do not exist, so panes blank and 404s spray. Too low
-  //    merely upsamples, which several providers here declare deliberately, so it is only a note.
-  const at = await probe(buildUrl(p, p.maxzoom, POINTS[0]));
+  // 2. The declared ceiling and tile size, checked at EVERY point against that provider's own
+  //    open-ocean no-data tile. Checking Amsterdam alone hid a real defect: Esri World Imagery
+  //    served Amsterdam to z20 while handing Tokyo the grey "Map data not yet available" JPEG at
+  //    the same zoom — full-size, valid, and a 200, so the pane went grey and nothing complained.
+  //
+  //    A ceiling set too high makes MapLibre request tiles that are missing, so panes blank. Too
+  //    low merely upsamples, which several providers here declare deliberately, so "z+1 also
+  //    works" is information, never a failure.
+  //
+  //    Away from Amsterdam the two ways of running out of data are judged differently, because
+  //    the app can only report one of them. A 404 reaches the pane as a "tiles missing" badge
+  //    with the coverageNote in its tooltip, so for a provider that HAS a coverageNote — a
+  //    withdrawal of the claim to uniform reach — it is expected behaviour, not drift. A no-data
+  //    200 reaches the pane as nothing at all, so it is a failure over populated ground however
+  //    well documented: an honest ceiling is one the user's city actually has imagery at. Only
+  //    over the remote point, where high-resolution imagery genuinely thins out everywhere, does
+  //    a declared coverageNote excuse it.
+  const control = await probe(buildUrl(p, p.maxzoom, CONTROL));
+  let at;
+  for (const [i, point] of POINTS.entries()) {
+    const result = await probe(buildUrl(p, p.maxzoom, point));
+    at ??= result;
+    const declared = i > 0 && Boolean(p.coverageNote);
+    if (result.status !== 200) {
+      const line = `z${p.maxzoom} at ${point.name} returns ${result.status}`;
+      if (declared) notes.push(`${line}; visibly missing rather than silently blank, as coverageNote says`);
+      else errors.push(`${line} — declared ceiling is too HIGH`);
+    } else if (isNoData(result, control.hash)) {
+      const line = `z${p.maxzoom} at ${point.name} returns a ${result.bytes}-byte no-data placeholder, identical to this provider's open-ocean tile`;
+      if (declared && point.remote) notes.push(`${line}; coverage is thin there, as coverageNote says`);
+      else errors.push(`${line} — a 200, so the pane goes blank with nothing to badge it`);
+    } else if (result.size && result.size.w !== p.tileSize) {
+      errors.push(`tileSize declared ${p.tileSize} but server returned ${result.size.w}x${result.size.h} at ${point.name} — layer will render one zoom level off`);
+    }
+  }
   const dims = at.size ? `${at.size.w}px` : "?";
-  if (at.status !== 200) errors.push(`z${p.maxzoom} at ${POINTS[0].name} returns ${at.status} — declared ceiling is too HIGH`);
-  else if (at.size && at.size.w !== p.tileSize) errors.push(`tileSize declared ${p.tileSize} but server returned ${at.size.w}x${at.size.h} — layer will render one zoom level off`);
 
+  const aboveControl = await probe(buildUrl(p, p.maxzoom + 1, CONTROL));
   const above = await probe(buildUrl(p, p.maxzoom + 1, POINTS[0]));
-  if (above.status === 200 && !above.placeholder) notes.push(`z${p.maxzoom + 1} also serves; confirm whether that is real detail or server upsampling`);
+  if (above.status === 200 && !isNoData(above, aboveControl.hash)) notes.push(`z${p.maxzoom + 1} also serves; confirm whether that is real detail or server upsampling`);
 
   if (errors.length > 0) problems += 1;
   const label = errors.length > 0 ? "FAIL" : "ok  ";

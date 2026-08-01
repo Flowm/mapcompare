@@ -4,9 +4,15 @@ import { WAYBACK_LATEST, WAYBACK_RELEASES } from "./waybackReleases";
 /**
  * The basemap catalogue.
  *
- * Every `maxzoom` here was established by requesting a real tile at a point known to be
- * covered, then walking the zoom up until the server 404s — NOT by reading documentation.
- * Documented ceilings lie: VersaTiles' own TileJSON advertises 19 and stops at 17.
+ * Every `maxzoom` here was established by requesting real tiles at SEVERAL points on different
+ * continents and walking the zoom up — NOT by reading documentation. Documented ceilings lie:
+ * VersaTiles' own TileJSON advertises 19 and stops at 17.
+ *
+ * Watch for 404 and for the 200 that carries a picture of nothing. Esri answers past its
+ * coverage with a grey "Map data not yet available" JPEG, which is a valid full-size image and
+ * therefore invisible to every error path in the app; probing one European city would have
+ * declared z20 fine while Tokyo went grey. `coverageNote` is where a non-uniform reach gets
+ * written down, and it is what the pane badge shows.
  *
  * Every `tileSize` was established by reading the pixel dimensions out of a returned tile.
  * This is the most dangerous field in the file, because a wrong value renders plausible
@@ -87,12 +93,21 @@ export const PROVIDERS: readonly Provider[] = [
     tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
     tileSize: 256,
     minzoom: 0,
-    // Deliberately below what the server will hand out. Esri answers 200 all the way to
-    // z23, but over Amsterdam the z22 and z23 responses are byte-identical, i.e. pure
-    // server-side upsampling of ~30 cm pixels. 20 is the honest native ceiling, and letting
-    // MapLibre upsample past it puts the overzoom factor in the pane badge instead of
-    // passing off interpolation as detail.
-    maxzoom: 20,
+    // Well below what the server will hand out, for a reason worth stating plainly: past its
+    // local coverage Esri does not 404, it answers 200 with a 2.5 KB grey JPEG reading "Map
+    // data not yet available". That tile is byte-identical the world over, it is a valid
+    // full-size image, and nothing downstream can tell it from imagery — the tile-error badge
+    // cannot fire, so a grey pane reads as a broken app rather than as a coverage limit.
+    //
+    // Measured over 3x3 tile blocks: z19 is real imagery over Amsterdam, Manhattan, Munich,
+    // Tokyo, Dubai and Sao Paulo alike. z20 is the grey placeholder over Munich, Tokyo, Dubai
+    // and Sao Paulo, and real only over Amsterdam, Manhattan, San Francisco, Zermatt and
+    // Sydney. So 19 is the honest ceiling for populated ground; the few cities with true z20
+    // lose one level of sharpness, which the overzoom badge states, and that is far the
+    // better failure. Wilderness runs out earlier still — see coverageNote.
+    maxzoom: 19,
+    coverageNote:
+      "Real imagery to z19 over populated ground, z17 over wilderness. Past its coverage Esri returns a grey 'Map data not yet available' tile with a 200, not an error.",
     note: "30 cm-1 m commercial imagery worldwide, 15 cm in some cities. The de facto reference everyone compares against.",
     attribution: ESRI_WORLD_IMAGERY,
     licence: ESRI_TERMS,
@@ -105,8 +120,18 @@ export const PROVIDERS: readonly Provider[] = [
     tiles: ["https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
     tileSize: 256,
     minzoom: 0,
-    // A genuine hard ceiling, unlike World Imagery above: z21 returns 404.
-    maxzoom: 20,
+    // Honest 404s here rather than World Imagery's grey placeholder — but a 404 is not the soft
+    // landing it sounds like. MapLibre suppresses the error event for 404 tiles entirely
+    // (SourceCache._loadTile: `if (err.status !== 404)`), so nothing reaches the "tiles missing"
+    // badge, and a pane whose tiles all 404 goes flat black with no explanation at all. The
+    // ceiling therefore has to sit where coverage really is, not where it peaks.
+    //
+    // Clarity is a curated set of scenes, not a seamless mosaic. Measured over twelve points:
+    // z18 serves at every city tried, z19 already 404s over Munich, Zermatt and Venice, and z20
+    // survives only over Amsterdam and Manhattan. So 18, and let the overzoom badge explain the
+    // rest — a badge that works.
+    maxzoom: 18,
+    coverageNote: "Patchy above z18 — a curated selection of scenes, not a seamless mosaic. Thins out first over wilderness, where even z18 is missing.",
     note: "The same archive with a different vintage selection — often a sharper or older frame than World Imagery over the same ground.",
     attribution: ESRI_CLARITY,
     licence: ESRI_TERMS,
@@ -126,8 +151,13 @@ export const PROVIDERS: readonly Provider[] = [
     tiles: ["https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/{RELEASE}/{z}/{y}/{x}"],
     tileSize: 256,
     minzoom: 0,
-    // Same archive and same upsampling behaviour as esri.imagery above.
-    maxzoom: 20,
+    // The same archive as esri.imagery, but served over WMTS, which 404s past its coverage
+    // instead of returning that layer's silent grey placeholder. Measured over twelve points:
+    // z19 serves at every city tried, including Munich and Venice where Clarity has already
+    // given up; z20 serves only over Amsterdam, Manhattan, San Francisco, Zermatt, Sydney and
+    // Lake Mead. A 404 here means a black pane, not a badge (see esri.clarity), so 19.
+    maxzoom: 19,
+    coverageNote: "Real imagery to z19 over populated ground; thinner over wilderness, where it runs out around z17.",
     note: "A time machine over World Imagery: one dated snapshot per year back to 2014. Put two years in two panes and watch a city get built.",
     attribution: ESRI_WORLD_IMAGERY,
     licence: ESRI_TERMS,

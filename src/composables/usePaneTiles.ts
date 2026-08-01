@@ -4,14 +4,20 @@ import { onScopeDispose, ref, type ShallowRef, watch } from "vue";
 /**
  * Counts failed tile requests for one pane.
  *
- * This is not a nice-to-have. VersaTiles serves European orthophotos to z17 but falls back to a
- * ~10 m global layer that stops around z12, so zooming in over San Francisco produces a pane full
- * of 404s. Without a count, that reads as "the app is broken" rather than "there is no
- * high-resolution coverage here" — which is the genuine insight the tool exists to deliver.
+ * KNOWN GAP, and a big one: this does not see 404s, which are most missing tiles. MapLibre
+ * swallows them deliberately — `SourceCache._loadTile` marks the tile errored and only fires the
+ * error event `if (err.status !== 404)` — so zooming past a provider's coverage produces a blank
+ * pane and a count of zero. What survives to this counter is the other failures: 403 on a rejected
+ * key, 429 on a rate limit, 5xx from the service.
  *
- * A caveat worth knowing: this can only see real failures. Some services answer a missing tile
- * with a 200 and a transparent placeholder image (EOX does exactly that outside its coverage), and
- * nothing here can distinguish that from open water. `pnpm run probe-tiles` is what catches those.
+ * Two things stand in for it until that is fixed. Every `maxzoom` in the registry is set where
+ * imagery genuinely exists rather than where the server stops saying no, so the common case is
+ * upscaling with the zoom-fit badge rather than a 404 at all; and `pnpm run probe-tiles` re-checks
+ * that against the live services.
+ *
+ * The third shape is worse than either and is not detectable here at all: a 200 carrying a picture
+ * of nothing. EOX answers outside its coverage with a transparent PNG, and Esri with a grey "Map
+ * data not yet available" JPEG. Only the probe script catches those.
  */
 export function usePaneTiles(map: ShallowRef<MapLibreMap | undefined>) {
   const failed = ref(0);
