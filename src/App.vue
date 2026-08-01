@@ -38,13 +38,14 @@ function openKeys(key?: ApiKeyName) {
     <header class="border-ink-700 flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
       <h1 class="text-sm font-semibold tracking-tight">map<span class="text-accent">compare</span></h1>
       <ModeSwitcher />
-      <LabelToggle />
       <PresetMenu />
 
       <div class="ml-auto flex items-center gap-2">
         <span class="text-ink-400 font-mono text-[11px] tabular-nums"> {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }} </span>
 
         <ShareButton />
+
+        <LabelToggle />
 
         <!-- One button, because everything about layers now lives behind it: the catalogue, the
              licence notes, the API keys and the sources table. -->
