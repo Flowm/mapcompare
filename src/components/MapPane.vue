@@ -6,8 +6,8 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 import PaneAttribution from "@/components/PaneAttribution.vue";
 import PaneStatus from "@/components/PaneStatus.vue";
 import { useAppState } from "@/composables/useAppState";
+import { useCamera } from "@/composables/useCamera";
 import { useDisplaySettings } from "@/composables/useDisplaySettings";
-import { useMapSync } from "@/composables/useMapSync";
 import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
 import { getProvider } from "@/lib/providers/registry";
@@ -31,7 +31,7 @@ const container = ref<HTMLDivElement>();
 const map = shallowRef<MapLibreMap>();
 
 const { camera } = useAppState();
-const { registerPane } = useMapSync();
+const { registerPane } = useCamera();
 const { allowRotate } = useDisplaySettings();
 
 const layerRef = computed(() => props.layer);

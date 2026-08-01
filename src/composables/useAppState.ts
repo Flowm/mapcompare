@@ -1,32 +1,24 @@
 import { useDebounceFn } from "@vueuse/core";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
-import type { CameraState } from "@/lib/camera";
 import { type Mode, paneCountFor } from "@/lib/mode";
 import type { Preset } from "@/lib/presets";
 import { DEFAULT_PANE_LAYERS, PROVIDER_IDS } from "@/lib/providers/registry";
 import type { PaneLayer } from "@/lib/providers/types";
 import { type AppStateSnapshot, decodeState, encodeState } from "@/lib/urlState";
 
+import { DEFAULT_CAMERA, moveCamera, useCamera } from "./useCamera";
+
 /**
  * The app's state, as a module-level singleton, with the URL as its persistent form.
  *
- * The camera is WRITE-ONLY to the URL after startup. It is read exactly twice: once at module
- * init, and once per popstate. Watching it back into the sync group would create a delayed
- * echo that the group's synchronous guard cannot catch, because the debounce has long since
- * returned by the time the write lands.
+ * The camera is not here — `useCamera` owns it, and this module only reads it in order to write the
+ * URL and to push a deliberate group-wide move. That split is what removed the import cycle these
+ * two used to have, and with it the `moveCamera` callback that three functions here took as a
+ * parameter purely because they could not reach it.
  */
 
-export const DEFAULT_CAMERA: CameraState = {
-  // Amsterdam Centrum. Chosen because z16 sits inside the measured ceiling of both opening
-  // panes, so nothing is blank on first paint, and the resolution gap between VersaTiles'
-  // Dutch orthophoto and Esri's commercial imagery is obvious with no explanatory copy.
-  center: [4.893, 52.373],
-  zoom: 16,
-  bearing: 0,
-  pitch: 0,
-  roll: 0,
-};
+const { camera } = useCamera();
 
 /**
  * DEFAULT_PANE_LAYERS is shared readonly registry data, so every pane list is built from
@@ -48,7 +40,6 @@ const FALLBACK: AppStateSnapshot = {
 const initial = decodeState(typeof window === "undefined" ? "" : window.location.search, PROVIDER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
 
 const mode = ref<Mode>(initial.mode);
-const camera = ref<CameraState>(initial.camera);
 const panes = ref<PaneLayer[]>(initial.panes.map(clonePaneLayer));
 
 /**
@@ -67,6 +58,10 @@ const blinkTopVisible = ref(true);
 
 /** Global label overlay toggle. Global rather than per-pane, see useResolvedStyle. */
 const labels = ref(initial.labels);
+
+// Hand the URL's camera to its owner. No pane exists yet, so this only establishes the group's
+// authoritative camera, which every pane is then seeded from as it registers.
+moveCamera(initial.camera);
 
 function snapshot(): AppStateSnapshot {
   return { mode: mode.value, camera: camera.value, panes: panes.value, swipe: swipe.value, labels: labels.value };
@@ -92,6 +87,20 @@ const writeUrlDebounced = useDebounceFn(writeUrl, 300);
 watch(camera, writeUrlDebounced);
 watch([mode, panes, swipe, labels], writeUrl, { deep: true });
 
+/**
+ * Applies a mode, and the invariants that come with it.
+ *
+ * Both writers go through here. `setMode` used to hold the blink rule on its own while
+ * `applySnapshot` assigned `mode.value` directly, so navigating Back into a blink-mode URL landed on
+ * whichever layer happened to be showing — the same transition producing two different results
+ * depending on which writer performed it.
+ */
+function applyMode(next: Mode): void {
+  mode.value = next;
+  // Entering blink always starts on the top pane, so the first press is a change.
+  if (next === "bl") blinkTopVisible.value = true;
+}
+
 /** Grows or shrinks `panes` to match the mode, restoring previous choices where possible. */
 function reconcilePanes(next: Mode): void {
   const wanted = paneCountFor(next);
@@ -112,34 +121,43 @@ function reconcilePanes(next: Mode): void {
 }
 
 /**
- * Applies a whole snapshot. Used for popstate and presets, both of which must move the maps
- * rather than merely record a new camera — the sync group is the authority on where panes are.
+ * Applies a whole snapshot. Used for popstate, which must move the maps rather than merely record a
+ * new camera — `useCamera` is the authority on where panes are.
+ *
+ * No reconciliation: `canonicalise` guarantees a snapshot carries exactly `paneCountFor(mode)`
+ * panes, so the list is taken as given. It used to call `reconcilePanes` and then overwrite its
+ * result on the next line, which meant the call was there for one side effect — updating
+ * `remembered` — that is now done directly and unconditionally.
  */
-function applySnapshot(next: AppStateSnapshot, moveCamera: (camera: CameraState) => void): void {
-  if (paneCountFor(next.mode) !== panes.value.length) reconcilePanes(next.mode);
-  mode.value = next.mode;
+function applySnapshot(next: AppStateSnapshot): void {
+  applyMode(next.mode);
   panes.value = next.panes.map(clonePaneLayer);
   next.panes.forEach((pane, i) => (remembered.value[i] = clonePaneLayer(pane)));
   swipe.value = next.swipe;
   labels.value = next.labels;
-  camera.value = next.camera;
   moveCamera(next.camera);
 }
 
 /**
- * Back and forward re-read the URL. `restoring` suppresses the write that the resulting state
- * changes would otherwise trigger, which would rewrite the entry we just navigated to.
+ * Back and forward re-read the URL.
+ *
+ * `restoring` suppresses the write that the resulting state changes would otherwise trigger, which
+ * would rewrite the entry we just navigated to. It is cleared after the watchers have flushed, not
+ * synchronously: the watchers are pre-flush, so they run in a microtask, and a `finally` that
+ * cleared the flag on the way out of this handler released it before it had suppressed anything.
+ * The result was that every Back/Forward silently rewrote its own history entry — dropping any
+ * query parameter the app does not own, and replacing an unrecognised provider id with a default.
  */
-function installHistoryListener(moveCamera: (camera: CameraState) => void): void {
+function installHistoryListener(): void {
   if (typeof window === "undefined") return;
   // Registered at module scope for the app's whole lifetime, so plain addEventListener rather
   // than useEventListener, which expects an effect scope to dispose it.
   window.addEventListener("popstate", () => {
     restoring = true;
     try {
-      applySnapshot(decodeState(window.location.search, PROVIDER_IDS, DEFAULT_PANE_LAYERS, FALLBACK), moveCamera);
+      applySnapshot(decodeState(window.location.search, PROVIDER_IDS, DEFAULT_PANE_LAYERS, FALLBACK));
     } finally {
-      restoring = false;
+      void nextTick().then(() => (restoring = false));
     }
   });
 }
@@ -149,7 +167,6 @@ export function useAppState() {
     mode: computed(() => mode.value),
     camera,
     panes,
-    paneCount: computed(() => paneCountFor(mode.value)),
     swipe,
     blinkTopVisible,
     labels,
@@ -158,9 +175,7 @@ export function useAppState() {
     setMode(next: Mode) {
       if (next === mode.value) return;
       reconcilePanes(next);
-      mode.value = next;
-      // Entering blink always starts on the top pane, so the first press is a change.
-      if (next === "bl") blinkTopVisible.value = true;
+      applyMode(next);
     },
 
     setSwipe(position: number) {
@@ -201,10 +216,8 @@ export function useAppState() {
      * job of the place picker. Bearing, pitch and roll reset so the arrival view is the one the
      * preset's zoom was chosen for.
      */
-    applyPreset(preset: Preset, moveCamera: (camera: CameraState) => void) {
-      const next: CameraState = { center: [preset.lon, preset.lat], zoom: preset.zoom, bearing: 0, pitch: 0, roll: 0 };
-      camera.value = next;
-      moveCamera(next);
+    applyPreset(preset: Preset) {
+      moveCamera({ center: [preset.lon, preset.lat], zoom: preset.zoom, bearing: 0, pitch: 0, roll: 0 });
     },
 
     /**

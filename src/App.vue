@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onScopeDispose, ref } from "vue";
+import { ref } from "vue";
 
 import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
@@ -12,21 +12,16 @@ import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
-import { useMapSync } from "@/composables/useMapSync";
 import type { ApiKeyName } from "@/lib/providers/types";
 
 const { camera, installHistoryListener } = useAppState();
-const { onChange, applyCamera } = useMapSync();
 const { panelOpen, togglePanel } = useLayerPanel();
 
 useKeyboardShortcuts();
 
-// The camera flows one way: sync group -> state -> URL. Nothing watches `camera` back into
-// applyCamera, because a delayed echo is the one feedback loop the sync group's synchronous
-// guard cannot catch. Deliberate group-wide moves (presets, popstate) call applyCamera
-// directly instead, which is why the history listener is handed it here.
-onScopeDispose(onChange((next) => (camera.value = next)));
-installHistoryListener(applyCamera);
+// The camera flows one way — panes -> useCamera -> URL — and that is now enforced by useCamera
+// owning both ends rather than wired up here. Nothing to hand in, and no way to close the loop.
+installHistoryListener();
 
 const keysOpen = ref(false);
 const sourcesOpen = ref(false);

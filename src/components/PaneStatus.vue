@@ -2,7 +2,7 @@
 import { computed } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
-import { useMapSync } from "@/composables/useMapSync";
+import { useCamera } from "@/composables/useCamera";
 import { licenceInfo } from "@/lib/providers/licence";
 import type { Provider } from "@/lib/providers/types";
 import { vintageFor } from "@/lib/providers/variants";
@@ -12,7 +12,7 @@ import { formatZoomFit, shortZoomFit, zoomFit, zoomSeverity } from "@/lib/zoomFi
 const props = defineProps<{ provider: Provider; variant: string | undefined; failedTiles: number }>();
 
 const { camera } = useAppState();
-const { applyCamera } = useMapSync();
+const { moveCamera } = useCamera();
 
 const licence = computed(() => licenceInfo(props.provider.licence.tier));
 const fit = computed(() => zoomFit(props.provider, camera.value.zoom));
@@ -22,7 +22,7 @@ const vintage = computed(() => vintageFor(props.provider, props.variant));
 /** Drops the whole group to this pane's native ceiling, for an apples-to-apples look. */
 function zoomToNative() {
   if (fit.value.kind !== "upscaled") return;
-  applyCamera({ ...camera.value, zoom: fit.value.nativeMax });
+  moveCamera({ ...camera.value, zoom: fit.value.nativeMax });
 }
 </script>
 

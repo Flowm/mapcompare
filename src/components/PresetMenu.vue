@@ -3,18 +3,16 @@ import { onClickOutside } from "@vueuse/core";
 import { ref } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
-import { useMapSync } from "@/composables/useMapSync";
 import { type Preset, PRESETS } from "@/lib/presets";
 
 const { applyPreset } = useAppState();
-const { applyCamera } = useMapSync();
 
 const open = ref(false);
 const root = ref<HTMLElement>();
 onClickOutside(root, () => (open.value = false));
 
 function choose(preset: Preset) {
-  applyPreset(preset, applyCamera);
+  applyPreset(preset);
   open.value = false;
 }
 </script>
