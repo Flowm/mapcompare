@@ -40,7 +40,7 @@ function makeDeps(over: Partial<ResolvedStyleDeps> = {}) {
     },
     loadOverlay: () => Promise.resolve(extractLabelOverlay(LIBERTY_FIXTURE)),
     overlayStyleUrl: OVERLAY_URL,
-    now: () => new Date("2026-03-10T12:00:00Z"),
+    now: ref(new Date("2026-03-10T12:00:00Z")),
     ...over,
   };
   return { deps, fetched };
@@ -206,46 +206,91 @@ describe("useResolvedStyle", () => {
 
   describe("the clock", () => {
     it("resolves a date variant against the injected clock, not the wall clock", async () => {
-      const { deps } = makeDeps({ now: () => new Date("2026-03-10T12:00:00Z") });
+      const { deps } = makeDeps({ now: ref(new Date("2026-03-10T12:00:00Z")) });
       await inScope(() => {
         const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: GIBS }), deps);
         if (resolved.value.state !== "ready") throw new Error("expected ready");
         // "latest" for a date variant means yesterday UTC.
         expect(tileUrlsOf(resolved.value.style)[0]).toContain("2026-03-09");
+        expect(resolved.value.variant).toBe("2026-03-09");
       });
     });
 
-    it("does not re-read the clock when an unrelated dependency changes", async () => {
-      // Regression test. The clock used to be read inside the watcher via new Date(), so an
-      // unrelated key paste after UTC midnight silently moved a GIBS pane to the next day.
-      let clock = new Date("2026-03-10T23:59:00Z");
+    it("does not change the rendered day when an unrelated dependency changes", async () => {
+      // Regression test for a reproduced defect: the clock was read with new Date() inside the
+      // watcher, so pasting a key for an unrelated provider after UTC midnight silently moved a
+      // GIBS pane onto another day's imagery. The clock is now a watched ref, so only the clock
+      // moving can move the day.
       const keys = ref<ApiKeys>({});
-      const { deps } = makeDeps({ keys, now: () => clock });
+      const { deps } = makeDeps({ keys, now: ref(new Date("2026-03-10T23:59:00Z")) });
 
       await inScope(async () => {
         const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: GIBS }), deps);
         if (resolved.value.state !== "ready") throw new Error("expected ready");
-        expect(tileUrlsOf(resolved.value.style)[0]).toContain("2026-03-09");
+        expect(resolved.value.variant).toBe("2026-03-09");
 
-        // Midnight passes, then the user pastes a key for a completely different provider.
-        clock = new Date("2026-03-11T00:01:00Z");
+        // Wall-clock midnight passes — but the app's clock is read once, so it has not moved.
         keys.value = { VITE_MAPBOX_TOKEN: "pk.irrelevant" };
         await nextTick();
 
         if (resolved.value.state !== "ready") throw new Error("expected ready");
-        // A pane whose URL pins no date follows the clock by design — what must NOT happen is
-        // that the pane and the chip describing it disagree, which is what candidate 02 fixes by
-        // publishing this value. Here we only pin that the resolution is driven by `deps.now`.
-        expect(tileUrlsOf(resolved.value.style)[0]).toContain("2026-03-10");
+        expect(resolved.value.variant).toBe("2026-03-09");
+        expect(tileUrlsOf(resolved.value.style)[0]).toContain("2026-03-09");
+      });
+    });
+
+    it("re-resolves when the clock itself moves, so every reader flips together", async () => {
+      const now = ref(new Date("2026-03-10T23:59:00Z"));
+      const { deps } = makeDeps({ now });
+      await inScope(async () => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: GIBS }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.variant).toBe("2026-03-09");
+
+        now.value = new Date("2026-03-11T00:01:00Z");
+        await nextTick();
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.variant).toBe("2026-03-10");
       });
     });
 
     it("clamps an out-of-window date from a stale shared link", async () => {
-      const { deps } = makeDeps({ now: () => new Date("2026-03-10T12:00:00Z") });
+      const { deps } = makeDeps({ now: ref(new Date("2026-03-10T12:00:00Z")) });
       await inScope(() => {
         const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: GIBS, variant: "2099-01-01" }), deps);
         if (resolved.value.state !== "ready") throw new Error("expected ready");
-        expect(tileUrlsOf(resolved.value.style)[0]).toContain("2026-03-09");
+        expect(resolved.value.variant).toBe("2026-03-09");
+      });
+    });
+  });
+
+  describe("the published variant", () => {
+    it("is the variant applied, which the pane's chip describes", async () => {
+      const { deps } = makeDeps();
+      await inScope(() => {
+        // A fixed-list variant, requested and honoured.
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: "eox.s2cloudless", variant: "2020" }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.variant).toBe("2020");
+      });
+    });
+
+    it("falls back to the provider's default when the request names an unknown value", async () => {
+      const { deps } = makeDeps();
+      await inScope(() => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: "eox.s2cloudless", variant: "not-a-year" }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.variant).not.toBe("not-a-year");
+        expect(resolved.value.variant).toBeTruthy();
+      });
+    });
+
+    it("is undefined for a provider with no variant at all", async () => {
+      const { deps } = makeDeps();
+      await inScope(() => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: VERSATILES }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.variant).toBeUndefined();
       });
     });
   });

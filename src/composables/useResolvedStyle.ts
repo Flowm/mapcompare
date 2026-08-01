@@ -11,10 +11,12 @@ import { resolveVariant } from "@/lib/providers/variants";
 
 import { useApiKeys } from "./useApiKeys";
 import { useAppState } from "./useAppState";
+import { useClock } from "./useClock";
 import { useDisplaySettings } from "./useDisplaySettings";
 
 export type ResolvedStyle =
-  | { state: "ready"; style: StyleSpecification }
+  /** `variant` is the variant actually applied, which is what any chip describing the pane must use. */
+  | { state: "ready"; style: StyleSpecification; variant: string | undefined }
   | { state: "loading" }
   | { state: "missing-key"; key: ApiKeyName; providerLabel: string }
   | { state: "error"; message: string }
@@ -39,8 +41,12 @@ export interface ResolvedStyleDeps {
   loadOverlay: () => Promise<LabelOverlay>;
   /** The style the overlay comes from, so a pane showing it is not labelled twice. */
   overlayStyleUrl: string;
-  /** Read once per resolution. A parameter so date variants are deterministic under test. */
-  now: () => Date;
+  /**
+   * The app's clock. A watched ref, not a `() => Date`: a function called inside the watcher would
+   * be re-read on every unrelated invalidation, which is what let a date pane change day in
+   * response to an unrelated setting. See `useClock`.
+   */
+  now: Ref<Date>;
 }
 
 /**
@@ -69,6 +75,7 @@ export function defaultResolvedStyleDeps(): ResolvedStyleDeps {
   const { keys } = useApiKeys();
   const { resampling } = useDisplaySettings();
   const { labels } = useAppState();
+  const { now } = useClock();
 
   return {
     keys,
@@ -77,7 +84,7 @@ export function defaultResolvedStyleDeps(): ResolvedStyleDeps {
     fetchStyle: fetchStyleFromNetwork,
     loadOverlay,
     overlayStyleUrl: LABEL_OVERLAY_STYLE_URL,
-    now: () => new Date(),
+    now,
   };
 }
 
@@ -87,6 +94,10 @@ export function defaultResolvedStyleDeps(): ResolvedStyleDeps {
  * Raster providers resolve synchronously; style providers need their JSON fetched first. Either
  * way the overlay is merged into the spec BEFORE it is applied, never added afterwards with
  * addLayer, so a basemap switch cannot race against it.
+ *
+ * The resolved variant is published on the `ready` state, because this is the module that decides
+ * it. Anything describing the pane — the vintage chip above all — must read that value rather than
+ * re-deriving it, or it ends up describing a vintage the pane is not showing.
  */
 export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps = defaultResolvedStyleDeps()) {
   const { keys, labels, resampling } = deps;
@@ -108,7 +119,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
   let generation = 0;
 
   watch(
-    [layer, keys, effectiveResampling, labels],
+    [layer, keys, effectiveResampling, labels, deps.now],
     () => {
       const request = ++generation;
       const stale = () => request !== generation;
@@ -120,7 +131,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
         return;
       }
 
-      const chosenVariant = provider.variant ? resolveVariant(provider.variant, variant, deps.now()) : undefined;
+      const chosenVariant = provider.variant ? resolveVariant(provider.variant, variant, deps.now.value) : undefined;
       const result = buildStyle(provider, chosenVariant, keys.value, { resampling: effectiveResampling.value });
 
       if (!result.ok) {
@@ -138,7 +149,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
       // Synchronous fast path: a raster provider with labels off needs no await, so the pane
       // never flashes through a loading state on a basemap switch.
       if (!withLabels && !("needsFetch" in result)) {
-        resolved.value = { state: "ready", style: result.style };
+        resolved.value = { state: "ready", style: result.style, variant: chosenVariant };
         return;
       }
 
@@ -146,7 +157,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
       Promise.all([base, withLabels ? deps.loadOverlay() : Promise.resolve(undefined)])
         .then(([style, overlay]) => {
           if (stale()) return;
-          resolved.value = { state: "ready", style: overlay ? applyLabelOverlay(style, overlay) : style };
+          resolved.value = { state: "ready", style: overlay ? applyLabelOverlay(style, overlay) : style, variant: chosenVariant };
         })
         .catch((error: unknown) => {
           if (stale()) return;

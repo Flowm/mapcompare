@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
+import { useClock } from "@/composables/useClock";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { groupByOperator, providerStatuses } from "@/lib/providers/availability";
 import { licenceInfo } from "@/lib/providers/licence";
@@ -32,6 +33,7 @@ const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }
 
 const { panes, setPaneLayer, swapPanes } = useAppState();
 const { keys } = useApiKeys();
+const { now } = useClock();
 const { activePane, closePanel, focusPane } = useLayerPanel();
 
 const query = ref("");
@@ -67,7 +69,7 @@ function variantsFor(index: number) {
 
 function currentVariant(index: number): string {
   const provider = getProvider(panes.value[index]?.providerId ?? "");
-  return provider?.variant ? resolveVariant(provider.variant, panes.value[index]?.variant, new Date()) : "";
+  return provider?.variant ? resolveVariant(provider.variant, panes.value[index]?.variant, now.value) : "";
 }
 
 function pickVariant(index: number, event: Event) {

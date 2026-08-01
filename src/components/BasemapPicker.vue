@@ -3,6 +3,7 @@ import { onClickOutside, useEventListener, useWindowSize } from "@vueuse/core";
 import { computed, nextTick, ref, watch } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
+import { useClock } from "@/composables/useClock";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { type Anchor, placePanel } from "@/lib/anchor";
 import { groupByOperator, providerStatuses } from "@/lib/providers/availability";
@@ -31,6 +32,7 @@ const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "r
 const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
 const { keys } = useApiKeys();
+const { now } = useClock();
 const { activePane, openPanel, focusPane } = useLayerPanel();
 
 const PANEL = { width: 260, maxHeight: 340 };
@@ -56,7 +58,7 @@ const groups = computed(() => {
 
 const current = computed(() => PROVIDERS.find((p) => p.id === props.layer.providerId));
 const variants = computed(() => (current.value?.variant ? variantValues(current.value.variant) : []));
-const selectedVariant = computed(() => (current.value?.variant ? resolveVariant(current.value.variant, props.layer.variant, new Date()) : ""));
+const selectedVariant = computed(() => (current.value?.variant ? resolveVariant(current.value.variant, props.layer.variant, now.value) : ""));
 
 const DOT_CLASS = { ok: "bg-tier-open", warn: "bg-tier-terms", bad: "bg-tier-restricted" } as const;
 

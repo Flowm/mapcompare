@@ -42,6 +42,14 @@ const { failed } = usePaneTiles(map);
 /** The style actually applied, which is what the attribution must be derived from. */
 const appliedStyle = computed(() => (resolved.value.state === "ready" ? resolved.value.style : undefined));
 
+/**
+ * The variant actually applied, for the same reason: the vintage chip has to describe what is on
+ * screen. `layer.variant` is only the *request* — usually absent, since a URL that pins no vintage
+ * means "latest" — so deriving the chip from it showed a date pane as "daily" instead of naming the
+ * day, and could never have shown the resolved date at all.
+ */
+const appliedVariant = computed(() => (resolved.value.state === "ready" ? resolved.value.variant : props.layer.variant));
+
 let unregister: (() => void) | undefined;
 
 onMounted(() => {
@@ -141,7 +149,7 @@ useResizeObserver(container, () => map.value?.resize());
          inside the visible region when the top pane is clipped. -->
     <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="props.side === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
       <div v-if="provider" class="pointer-events-auto">
-        <PaneStatus :provider="provider" :variant="layer.variant" :failed-tiles="failed" />
+        <PaneStatus :provider="provider" :variant="appliedVariant" :failed-tiles="failed" />
       </div>
       <PaneAttribution :style="appliedStyle" />
     </div>
