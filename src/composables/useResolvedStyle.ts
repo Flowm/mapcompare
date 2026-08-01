@@ -2,11 +2,12 @@ import type { StyleSpecification } from "maplibre-gl";
 import { computed, type Ref, shallowRef, watch } from "vue";
 
 import { fetchLabelOverlayStyle, fetchStyle as fetchStyleFromNetwork, LABEL_OVERLAY_STYLE_URL } from "@/api/styles";
+import { creditParts } from "@/lib/attribution";
 import type { ApiKeys } from "@/lib/providers/availability";
-import { buildStyle } from "@/lib/providers/buildStyle";
+import { buildStyle, resolveAttribution } from "@/lib/providers/buildStyle";
 import { applyLabelOverlay, extractLabelOverlay, type LabelOverlay } from "@/lib/providers/labelOverlay";
-import { getProvider } from "@/lib/providers/registry";
-import type { ApiKeyName, PaneLayer } from "@/lib/providers/types";
+import { getProvider, LABEL_OVERLAY_PROVIDER_ID } from "@/lib/providers/registry";
+import type { ApiKeyName, PaneLayer, Provider, Wordmark } from "@/lib/providers/types";
 import { resolveVariant } from "@/lib/providers/variants";
 
 import { useApiKeys } from "./useApiKeys";
@@ -14,9 +15,25 @@ import { useAppState } from "./useAppState";
 import { useClock } from "./useClock";
 import { useDisplaySettings } from "./useDisplaySettings";
 
+/**
+ * Everything one pane is legally obliged to show, decided here because this is where it becomes
+ * known which providers' content the pane actually renders.
+ *
+ * `parts` is attribution HTML and is NOT sanitized — the renderer does that, immediately before it
+ * reaches `v-html`.
+ */
+export interface PaneCredit {
+  parts: readonly string[];
+  wordmarks: readonly Wordmark[];
+}
+
 export type ResolvedStyle =
-  /** `variant` is the variant actually applied, which is what any chip describing the pane must use. */
-  | { state: "ready"; style: StyleSpecification; variant: string | undefined }
+  /**
+   * `variant` is the variant actually applied, which is what any chip describing the pane must use.
+   * `credit` is the same idea for the legal notice: it names what is on screen, including the label
+   * overlay when the pane got one, so no renderer has to re-derive it and get it wrong.
+   */
+  | { state: "ready"; style: StyleSpecification; variant: string | undefined; credit: PaneCredit }
   | { state: "loading" }
   | { state: "missing-key"; key: ApiKeyName; providerLabel: string }
   | { state: "error"; message: string }
@@ -64,6 +81,30 @@ function loadOverlay(): Promise<LabelOverlay> {
       throw error;
     });
   return overlayPromise;
+}
+
+/**
+ * The credit for a pane showing `provider`'s content, with the overlay's own credit folded in when
+ * the pane got one.
+ *
+ * The overlay is the Liberty provider's vector tiles, so its credit is Liberty's registry entry
+ * rather than anything read off the overlay object: Liberty declares its source as a TileJSON `url`,
+ * which means the fetched document carries no attribution to copy. An OSM-derived overlay drawn over
+ * every pane with nothing crediting OSM was the exact failure this closes.
+ */
+function paneCredit(provider: Provider, variant: string | undefined, style: StyleSpecification, labelled: boolean): PaneCredit {
+  const overlaySource = labelled ? getProvider(LABEL_OVERLAY_PROVIDER_ID) : undefined;
+  const crediting = overlaySource ? [provider, overlaySource] : [provider];
+
+  return {
+    // The variant is applied to both, harmlessly: only EOX puts a token in its credit, and a
+    // provider without one is untouched.
+    parts: creditParts(
+      crediting.map((p) => resolveAttribution(p, variant)),
+      style,
+    ),
+    wordmarks: crediting.flatMap((p) => (p.wordmark ? [p.wordmark] : [])),
+  };
 }
 
 /** Drops the memoised overlay. For tests, and for forcing a retry. */
@@ -149,7 +190,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
       // Synchronous fast path: a raster provider with labels off needs no await, so the pane
       // never flashes through a loading state on a basemap switch.
       if (!withLabels && !("needsFetch" in result)) {
-        resolved.value = { state: "ready", style: result.style, variant: chosenVariant };
+        resolved.value = { state: "ready", style: result.style, variant: chosenVariant, credit: paneCredit(provider, chosenVariant, result.style, false) };
         return;
       }
 
@@ -157,7 +198,8 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
       Promise.all([base, withLabels ? deps.loadOverlay() : Promise.resolve(undefined)])
         .then(([style, overlay]) => {
           if (stale()) return;
-          resolved.value = { state: "ready", style: overlay ? applyLabelOverlay(style, overlay) : style, variant: chosenVariant };
+          const applied = overlay ? applyLabelOverlay(style, overlay) : style;
+          resolved.value = { state: "ready", style: applied, variant: chosenVariant, credit: paneCredit(provider, chosenVariant, applied, overlay !== undefined) };
         })
         .catch((error: unknown) => {
           if (stale()) return;

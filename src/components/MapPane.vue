@@ -38,8 +38,15 @@ const { resolved } = useResolvedStyle(layerRef);
 const provider = computed(() => getProvider(props.layer.providerId));
 const { failed } = usePaneTiles(map);
 
-/** The style actually applied, which is what the attribution must be derived from. */
-const appliedStyle = computed(() => (resolved.value.state === "ready" ? resolved.value.style : undefined));
+/**
+ * The credit for what is actually applied. Decided by `useResolvedStyle` rather than re-derived
+ * here, because only that module knows which providers ended up on screen — a pane's own provider
+ * plus the label overlay, whose credit is nowhere in the style document to be read back.
+ */
+const appliedCredit = computed(() => (resolved.value.state === "ready" ? resolved.value.credit : undefined));
+
+/** One owner for which side the chrome sits on, since both the container and the credit need it. */
+const chromeSide = computed(() => (props.side === "left" ? "left" : "right"));
 
 /**
  * The variant actually applied, for the same reason: the vintage chip has to describe what is on
@@ -152,11 +159,13 @@ useResizeObserver(container, () => map.value?.resize());
     <!-- Chips and credit share the bottom corner on `side`, beneath the picker MapDeck places at
          the top of the same side. Keeping them together on one side is what guarantees they stay
          inside the visible region when the top pane is clipped. -->
-    <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="props.side === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
+    <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
       <div v-if="provider" class="pointer-events-auto">
         <PaneStatus :provider="provider" :variant="appliedVariant" :failed-tiles="failed" />
       </div>
-      <PaneAttribution :style="appliedStyle" />
+      <!-- Only ever the credit for imagery actually on screen: `credit` rides the `ready` state, so
+           a pane blocked on a missing key or a failed style shows no vendor mark. -->
+      <PaneAttribution :credit="appliedCredit" :side="chromeSide" />
     </div>
 
     <!-- Blocking states. Overzoom is deliberately NOT one of them: MapLibre upsamples rather

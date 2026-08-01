@@ -43,6 +43,35 @@ export interface Licence {
 }
 
 /**
+ * A logo the provider's terms require ON the map, in addition to the text credit.
+ *
+ * Two vendors here demand one, and neither is satisfied by the text alone: Mapbox requires their
+ * wordmark on every map drawn from their data, and MapTiler requires theirs for free-tier keys.
+ * Because MapLibre is not either vendor's own renderer, neither adds it for us — Mapbox says so
+ * explicitly about third-party libraries — so it is the app's job.
+ *
+ * Both forbid altering the artwork, which is what the rest of these fields are for: the asset is
+ * served verbatim at its own dimensions, never recoloured, rescaled or given a plate. `width` and
+ * `height` are declared rather than measured because an unsized SVG in an `<img>` reflows the pane
+ * chrome the moment it loads.
+ */
+export interface Wordmark {
+  /**
+   * Path under `public/logos/`. Vendored rather than hotlinked: MapTiler's own snippet points at
+   * `api.maptiler.com/resources/logo.svg`, which would put a third-party request on every pane and
+   * make the credit fail with the network. The files are those vendors' own artwork, byte for byte.
+   */
+  src: string;
+  /** Where the mark must link. Both vendors name a specific destination for it. */
+  href: string;
+  /** Alt text, so the credit survives for a screen reader too. */
+  alt: string;
+  /** The artwork's own pixel dimensions. Mapbox additionally floors theirs at 65x20. */
+  width: number;
+  height: number;
+}
+
+/**
  * A parameter that turns one provider into a family of comparable layers.
  *
  * Values are always an explicit list, never generated from a range: EOX publishes no
@@ -80,10 +109,16 @@ interface ProviderBase {
   operator: string;
   /** One line for the picker: resolution, vintage, quirks. */
   note: string;
-  /** Attribution HTML. Required — this is the legal notice. Sanitized before render. */
+  /**
+   * Attribution HTML. Required — this is the legal notice. Sanitized before render.
+   *
+   * This is the FLOOR for what the pane credits, not a fallback: a vendor style.json often hides
+   * its own credit behind a TileJSON `url`, where nothing in the app can see it. See
+   * `creditParts`.
+   */
   attribution: string;
-  /** Asset path for a required wordmark. Mapbox's terms need the logo, not just text. */
-  logo?: string;
+  /** Present only where the vendor's terms require their logo on the map as well as the text. */
+  wordmark?: Wordmark;
   licence: Licence;
   minzoom: number;
   /**

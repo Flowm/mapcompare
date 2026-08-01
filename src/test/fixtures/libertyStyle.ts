@@ -20,11 +20,11 @@ export const LIBERTY_FIXTURE: StyleSpecification = {
       tileSize: 256,
       maxzoom: 6,
     },
-    openmaptiles: {
-      type: "vector",
-      url: "https://tiles.openfreemap.org/planet",
-      attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">OpenMapTiles</a>',
-    },
+    // No `attribution`, and that is faithful: the real Liberty document declares this source as a
+    // bare TileJSON `url`, so its credit lives in a file MapLibre fetches into its own source cache
+    // where the app cannot read it. This fixture used to inline a credit here, which made a
+    // style-only attribution path look correct in tests while shipping panes with no credit at all.
+    openmaptiles: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
   },
   layers: [
     { id: "background", type: "background", paint: { "background-color": "#f8f4f0" } },

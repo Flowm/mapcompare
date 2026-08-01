@@ -1,4 +1,4 @@
-import type { PaneLayer, Provider } from "./types";
+import type { PaneLayer, Provider, Wordmark } from "./types";
 import { WAYBACK_LATEST, WAYBACK_RELEASES } from "./waybackReleases";
 
 /**
@@ -25,9 +25,42 @@ import { WAYBACK_LATEST, WAYBACK_RELEASES } from "./waybackReleases";
  *     `arcgis.imagery` is the licensed route to the same imagery.
  *   - Sentinel-2 cloudless is CC BY-NC-SA 4.0: non-commercial AND share-alike.
  *   - Mapbox bills per tile request via MapLibre and requires their wordmark.
+ *   - MapTiler requires their logo too on a free-tier key.
  */
 
 const OSM = '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+/**
+ * The two wordmarks the catalogue is required to display. See `Wordmark` for why they exist at all.
+ *
+ * Each asset is the vendor's own artwork copied verbatim into `public/logos/`, so what is shown is
+ * what they published:
+ *   - `mapbox.svg` is decoded from the `data:` URI in `mapbox-gl.css`'s `.mapboxgl-ctrl-logo`,
+ *     i.e. the exact mark Mapbox GL JS draws on its own maps.
+ *   - `maptiler.svg` is `https://api.maptiler.com/resources/logo.svg`, the file MapTiler's
+ *     attribution guide tells you to embed.
+ *
+ * Both are drawn white with a dark outline precisely so they stay legible over imagery, which is
+ * why neither gets a background plate here — a plate would be styling artwork we may not style.
+ */
+const MAPBOX_WORDMARK: Wordmark = {
+  src: "/logos/mapbox.svg",
+  // Mapbox require the mark itself to link to their homepage; the text credit links elsewhere.
+  href: "https://www.mapbox.com/",
+  alt: "Mapbox",
+  // The size Mapbox GL JS renders it at. Their docs quote a 65x20 minimum; this is the artwork's
+  // own aspect at the vendor's own scale, so it is neither cropped nor stretched.
+  width: 88,
+  height: 23,
+};
+
+const MAPTILER_WORDMARK: Wordmark = {
+  src: "/logos/maptiler.svg",
+  href: "https://www.maptiler.com/",
+  alt: "MapTiler",
+  width: 67,
+  height: 20,
+};
 
 /** Esri's copyright text, taken verbatim from the service metadata. */
 const ESRI_WORLD_IMAGERY = 'Source: <a href="https://www.esri.com/">Esri</a>, Vantor, Earthstar Geographics, and the GIS User Community';
@@ -263,8 +296,11 @@ export const PROVIDERS: readonly Provider[] = [
     // `pnpm run probe-tiles` can run with a real key.
     maxzoom: 19,
     note: "Global imagery down to 15 cm in places, served as retina 512 px tiles.",
-    attribution: `© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © ${OSM}`,
-    logo: "/logos/mapbox.svg",
+    // All three links are mandatory and are given in Mapbox's own attribution snippet — the
+    // feedback link included, and bold, which is how they publish it. Dropping "Improve this map"
+    // is as much a breach as dropping the copyright line.
+    attribution: `© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © ${OSM} <strong><a href="https://apps.mapbox.com/feedback/">Improve this map</a></strong>`,
+    wordmark: MAPBOX_WORDMARK,
     licence: {
       ...METERED("750,000 raster tile requests/month"),
       url: "https://www.mapbox.com/legal/tos",
@@ -285,8 +321,16 @@ export const PROVIDERS: readonly Provider[] = [
     // Drives the zoom-fit badge.
     maxzoom: 20,
     note: "Global ~50 cm imagery, colour-balanced more aggressively than Esri's.",
+    // Load-bearing, not a duplicate of the vendor style: MapTiler's style.json declares its sources
+    // as TileJSON `url`s, so the credit inside them never reaches our attribution control. Without
+    // this string the pane would show no credit at all.
     attribution: `© <a href="https://www.maptiler.com/copyright/">MapTiler</a> © ${OSM}`,
-    licence: { ...METERED("100,000 requests/month"), url: "https://www.maptiler.com/terms/" },
+    wordmark: MAPTILER_WORDMARK,
+    licence: {
+      ...METERED("100,000 requests/month"),
+      url: "https://www.maptiler.com/terms/",
+      note: "Every tile you load is billed against your own key. Free allowance: 100,000 requests/month. MapTiler require their logo on the map on the free tier, which is why it is shown; paid plans may remove it.",
+    },
     requiresKey: "VITE_MAPTILER_KEY",
     keyUrl: "https://cloud.maptiler.com/account/keys/",
     freeTier: "100k requests/month, no card",

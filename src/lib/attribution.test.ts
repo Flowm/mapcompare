@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { collectAttribution, dedupeAttribution, sanitizeAttributionHtml } from "./attribution";
+import { collectAttribution, creditParts, dedupeAttribution, sanitizeAttributionHtml } from "./attribution";
+
+describe("creditParts", () => {
+  it("credits a provider whose style hides its attribution behind a TileJSON url", () => {
+    // The failure this exists for: MapTiler and OpenFreeMap both declare sources as `url`, so a
+    // style-only credit rendered those panes with nothing at all.
+    const style = { sources: { openmaptiles: { type: "vector", url: "https://tiles.test/planet" } } };
+    expect(creditParts(["© MapTiler"], style)).toStrictEqual(["© MapTiler"]);
+  });
+
+  it("adds credits the style declares that no descriptor knows about", () => {
+    const style = { sources: { extra: { attribution: "© Some vendor" } } };
+    expect(creditParts(["© Declared"], style)).toStrictEqual(["© Declared", "© Some vendor"]);
+  });
+
+  it("collapses the descriptor and inline copies of the same credit, keeping the descriptor's", () => {
+    // Every raster pane: `buildRasterStyle` inlines the descriptor string, so it arrives twice.
+    expect(creditParts(["© Vendor"], { sources: { basemap: { attribution: "©  vendor" } } })).toStrictEqual(["© Vendor"]);
+  });
+
+  it("still credits when there is no style yet", () => {
+    expect(creditParts(["© Vendor"], undefined)).toStrictEqual(["© Vendor"]);
+  });
+});
 
 describe("collectAttribution", () => {
   it("gathers attribution from every source, in source order", () => {

@@ -56,9 +56,11 @@ describe("extractLabelOverlay", () => {
     expect(overlay.sprite).toBe("https://tiles.openfreemap.org/sprites/ofm_f384/ofm");
   });
 
-  it("picks up the vector source with its attribution", () => {
+  it("picks up the vector source, which carries no credit of its own to copy", () => {
     expect(overlay.source).toMatchObject({ type: "vector", url: "https://tiles.openfreemap.org/planet" });
-    expect(overlay.attribution).toContain("OpenFreeMap");
+    // Pinning the absence deliberately: the credit for the overlay cannot come from this document,
+    // which is why `useResolvedStyle` takes it from the Liberty registry entry instead.
+    expect(overlay.source).not.toHaveProperty("attribution");
   });
 
   it("preserves each layer's filters, zoom range and layout", () => {

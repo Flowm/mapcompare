@@ -113,8 +113,7 @@ Three edges are worth stating outright:
 - **Sentinel-2 cloudless is CC BY-NC-SA 4.0** — non-commercial _and_ share-alike. Its credit must
   appear verbatim and must name the composite year, which the app does automatically.
 - **Mapbox bills per tile request through MapLibre** rather than bundling into a cheaper "map
-  load", because MapLibre is not a Mapbox renderer. Their terms also require the Mapbox wordmark,
-  which is why the descriptor carries a logo field.
+  load", because MapLibre is not a Mapbox renderer.
 
 Every layer's credit is on the map at all times, and the full table is in
 **Layers → Sources & licences**.
@@ -232,3 +231,18 @@ pull request and deploys `main` on merge. Build-time `VITE_*` keys come from rep
 Every visible layer is credited on the map at all times, and **Layers → Sources & licences** lists
 each layer's exact credit, licence, measured max zoom and coverage. Map rendering by
 [MapLibre GL JS](https://maplibre.org/).
+
+Three details are load-bearing rather than decorative:
+
+- **Mapbox and MapTiler both require their wordmark**, not just a text credit — Mapbox on every map
+  drawn from their data, MapTiler on a free-tier key. Because MapLibre is neither vendor's own
+  renderer, neither adds it for us, so the app draws it: each vendor's own SVG from `public/logos/`,
+  at its own size, unrecoloured and without a background plate, linking where the vendor says. The
+  Mapbox credit also carries their mandatory **Improve this map** feedback link.
+- **A vendor's own credit is often invisible to us.** MapTiler's `style.json` and OpenFreeMap
+  Liberty declare their sources as TileJSON `url`s, so the credit lives in a document MapLibre
+  fetches into its own cache. Reading the applied style alone left those panes with no credit at
+  all; the registry's `attribution` is the floor, and anything the style declares is added on top.
+- **The credit is drawn inside the pane, on the same side as its chips.** In swipe mode the top pane
+  is masked with `clip-path`, so a credit on the hidden side would be clipped away — a licensing
+  failure, not a cosmetic one. This is also why MapLibre's own `AttributionControl` is off.

@@ -26,8 +26,16 @@ export interface LabelOverlay {
   glyphs: string;
   /** Liberty's sprite. Required for highway shields and POI icons, which are sprite images. */
   sprite: StyleSpecification["sprite"];
-  attribution: string;
 }
+
+/**
+ * Note what is deliberately NOT here: the overlay's credit.
+ *
+ * It cannot come from this document. Liberty declares its vector source as a TileJSON `url`, so the
+ * fetched style carries no `attribution` to copy — a field here read whatever the source happened to
+ * inline, which for the real Liberty is nothing at all. The credit is therefore taken from the
+ * registry entry the overlay is extracted from, in `useResolvedStyle`.
+ */
 
 /**
  * Selects the parts of Liberty worth drawing over imagery: every `symbol` layer (place labels,
@@ -59,7 +67,6 @@ export function extractLabelOverlay(liberty: StyleSpecification): LabelOverlay {
     layers,
     glyphs: liberty.glyphs ?? "",
     sprite: liberty.sprite,
-    attribution: attributionOf(source),
   };
 }
 
@@ -71,10 +78,6 @@ function keepForOverlay(layer: LayerSpecification, sourceName: string): boolean 
 
 function findVectorSourceName(style: StyleSpecification): string | undefined {
   return Object.keys(style.sources).find((name) => style.sources[name]?.type === "vector");
-}
-
-function attributionOf(source: SourceSpecification): string {
-  return "attribution" in source && typeof source.attribution === "string" ? source.attribution : "";
 }
 
 /**

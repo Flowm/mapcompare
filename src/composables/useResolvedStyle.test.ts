@@ -204,6 +204,88 @@ describe("useResolvedStyle", () => {
     });
   });
 
+  describe("the credit", () => {
+    it("credits a style-URL pane from its descriptor, since the fetched document declares none", async () => {
+      // The whole reason the credit is assembled here. MapTiler's style.json names TileJSON `url`
+      // sources, so reading the applied style alone left the pane with no attribution at all.
+      const { deps } = makeDeps({ keys: ref({ VITE_MAPTILER_KEY: "k" }) });
+      await inScope(async () => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: MAPTILER }), deps);
+        await vi.waitFor(() => expect(resolved.value.state).toBe("ready"));
+        if (resolved.value.state !== "ready") return;
+        expect(resolved.value.credit.parts.join(" ")).toContain("MapTiler");
+        expect(resolved.value.credit.parts.join(" ")).toContain("OpenStreetMap");
+      });
+    });
+
+    it("carries the wordmark of a vendor that requires one, and none for a vendor that does not", async () => {
+      const { deps } = makeDeps({ keys: ref({ VITE_MAPBOX_TOKEN: "pk.test" }) });
+      await inScope(() => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: MAPBOX }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.credit.wordmarks.map((w) => w.alt)).toStrictEqual(["Mapbox"]);
+      });
+
+      await inScope(() => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: VERSATILES }), makeDeps().deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.credit.wordmarks).toStrictEqual([]);
+      });
+    });
+
+    it("does not credit a vendor whose imagery never reached the screen", async () => {
+      // A pane blocked on a missing key must not show Mapbox's mark: `credit` rides `ready`, so
+      // there is nothing for the renderer to draw.
+      const { deps } = makeDeps();
+      await inScope(() => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: MAPBOX }), deps);
+        expect(resolved.value.state).toBe("missing-key");
+        expect(resolved.value).not.toHaveProperty("credit");
+      });
+    });
+
+    it("substitutes the resolved variant into a credit that names it", async () => {
+      const { deps } = makeDeps({ now: ref(new Date("2026-03-10T12:00:00Z")) });
+      await inScope(() => {
+        // EOX require their credit to name the composite year, and it must name the year applied.
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: "eox.s2cloudless", variant: "2019" }), deps);
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.credit.parts.join(" ")).toContain("EOxCloudless 2019");
+        expect(resolved.value.credit.parts.join(" ")).not.toContain("{YEAR}");
+      });
+    });
+
+    it("adds the overlay's credit when the pane is labelled, and drops it when it is not", async () => {
+      // The overlay is OSM-derived vector tiles whose own document carries no attribution, so an
+      // unlabelled pane's credit is the only thing that could have named OpenFreeMap.
+      const labels = ref(true);
+      const { deps } = makeDeps({ labels });
+      await inScope(async () => {
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: VERSATILES }), deps);
+        await vi.waitFor(() => expect(resolved.value.state).toBe("ready"));
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.credit.parts.join(" ")).toContain("OpenFreeMap");
+
+        labels.value = false;
+        await nextTick();
+        if (resolved.value.state !== "ready") throw new Error("expected ready");
+        expect(resolved.value.credit.parts.join(" ")).not.toContain("OpenFreeMap");
+      });
+    });
+
+    it("credits OpenFreeMap once on the pane the overlay was extracted from", async () => {
+      // Labels are suppressed there, so the overlay must not add a second copy of the same credit.
+      const { deps } = makeDeps({ labels: ref(true) });
+      await inScope(async () => {
+        const overlayDeps = { ...deps, overlayStyleUrl: "https://tiles.openfreemap.org/styles/liberty" };
+        const { resolved } = useResolvedStyle(ref<PaneLayer>({ providerId: LIBERTY }), overlayDeps);
+        await vi.waitFor(() => expect(resolved.value.state).toBe("ready"));
+        if (resolved.value.state !== "ready") return;
+        expect(resolved.value.credit.parts.filter((p) => p.includes("OpenFreeMap"))).toHaveLength(1);
+      });
+    });
+  });
+
   describe("the clock", () => {
     it("resolves a date variant against the injected clock, not the wall clock", async () => {
       const { deps } = makeDeps({ now: ref(new Date("2026-03-10T12:00:00Z")) });

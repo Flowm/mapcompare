@@ -1,3 +1,7 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_PANE_LAYERS, getProvider, LABEL_OVERLAY_PROVIDER_ID, labelOverlayStyleUrl, PROVIDER_IDS, PROVIDERS } from "./registry";
@@ -52,6 +56,62 @@ describe("registry invariants", () => {
 
   it("keeps minzoom below maxzoom", () => {
     for (const p of PROVIDERS) expect(p.maxzoom, p.id).toBeGreaterThan(p.minzoom);
+  });
+});
+
+describe("required wordmarks", () => {
+  const withWordmark = PROVIDERS.filter((p) => p.wordmark);
+
+  it("belongs to exactly the two vendors whose terms demand a logo", () => {
+    // Pinned rather than counted: adding one where it is not required puts another vendor's
+    // trademark on the map for no reason, and dropping one is a licence breach.
+    expect(withWordmark.map((p) => p.id).toSorted()).toStrictEqual(["mapbox.satellite", "maptiler.satellite"]);
+  });
+
+  it("points at an asset that is actually in public/, since a broken image credits nobody", () => {
+    // Resolved with fileURLToPath rather than `new URL(..., import.meta.url)`: Vite rewrites that
+    // pattern into an inlined data URI at transform time, so the check would silently pass on a
+    // string instead of touching the disk.
+    const publicDir = join(dirname(fileURLToPath(import.meta.url)), "../../../public");
+    for (const p of withWordmark) {
+      expect(p.wordmark!.src, p.id).toMatch(/^\/logos\/[a-z0-9-]+\.svg$/);
+      expect(existsSync(join(publicDir, p.wordmark!.src)), p.wordmark!.src).toBe(true);
+    }
+  });
+
+  it("links each mark to the destination its vendor names, over https", () => {
+    for (const p of withWordmark) expect(p.wordmark!.href, p.id).toMatch(/^https:\/\//);
+    expect(getProvider("mapbox.satellite")?.wordmark?.href).toBe("https://www.mapbox.com/");
+    expect(getProvider("maptiler.satellite")?.wordmark?.href).toBe("https://www.maptiler.com/");
+  });
+
+  it("declares the artwork's own size, and never below Mapbox's documented floor", () => {
+    // The dimensions are what stop the browser from guessing, and stop us from rescaling artwork
+    // both licences say may not be altered.
+    for (const p of withWordmark) {
+      expect(p.wordmark!.width, p.id).toBeGreaterThanOrEqual(65);
+      expect(p.wordmark!.height, p.id).toBeGreaterThanOrEqual(20);
+      expect(p.wordmark!.alt.trim(), p.id).not.toBe("");
+    }
+  });
+});
+
+describe("credits with wording the vendor dictates", () => {
+  it("carries all three links Mapbox's attribution snippet requires", () => {
+    const attribution = getProvider("mapbox.satellite")!.attribution;
+    // The feedback link is as mandatory as the copyright lines, and is the one easily forgotten.
+    expect(attribution).toContain("https://apps.mapbox.com/feedback/");
+    expect(attribution).toContain("Improve this map");
+    expect(attribution).toContain("mapbox.com/about/maps");
+    expect(attribution).toContain("openstreetmap.org/copyright");
+  });
+
+  it("credits MapTiler in its own descriptor, which is the only place that credit can come from", () => {
+    // MapTiler's style.json declares TileJSON `url` sources, so nothing in the fetched document
+    // reaches the attribution control. Without this string the pane shows no credit whatsoever.
+    const attribution = getProvider("maptiler.satellite")!.attribution;
+    expect(attribution).toContain("maptiler.com/copyright");
+    expect(attribution).toContain("openstreetmap.org/copyright");
   });
 });
 

@@ -17,6 +17,26 @@ export interface StyleLike {
   sources?: Record<string, unknown>;
 }
 
+/**
+ * What one pane must credit: the strings its providers declare, plus whatever the applied style
+ * declares on top.
+ *
+ * The union is the whole point, and it is not belt-and-braces. Reading the style alone is not
+ * enough, because a source may name a TileJSON `url` instead of inlining `attribution` — MapLibre
+ * fetches that document into its own source cache, where nothing here can see it. Both MapTiler's
+ * satellite style and OpenFreeMap Liberty are built that way, so a style-only credit rendered those
+ * panes with NO attribution whatsoever.
+ *
+ * Reading the declared strings alone is not enough either: a fetched vendor style can name sources
+ * we know nothing about, and the label overlay adds its own.
+ *
+ * `declared` comes first so that where the two say the same thing, the registry's wording — the one
+ * checked against the vendor's terms — is what survives dedup.
+ */
+export function creditParts(declared: readonly string[], style: StyleLike | undefined): string[] {
+  return dedupeAttribution([...declared, ...(style ? collectAttribution(style) : [])]);
+}
+
 /** Every distinct attribution string across a style's sources, in source order. */
 export function collectAttribution(style: StyleLike): string[] {
   const parts: string[] = [];
@@ -31,10 +51,10 @@ export function collectAttribution(style: StyleLike): string[] {
 /**
  * Collapses duplicates.
  *
- * With the label overlay on, nearly every pane credits OpenStreetMap twice — once via the imagery
- * provider and once via the overlay. Comparison is done on normalised text so
- * "© OpenStreetMap contributors" and "©  OpenStreetMap  contributors" count as one, while the
- * original markup is what gets returned.
+ * Every raster pane hits this: the descriptor's credit and the credit inlined into the style
+ * `buildRasterStyle` produces come from the same string, so `creditParts` sees it twice.
+ * Comparison is done on normalised text so "© OpenStreetMap contributors" and
+ * "©  OpenStreetMap  contributors" count as one, while the original markup is what gets returned.
  */
 export function dedupeAttribution(parts: readonly string[]): string[] {
   const seen = new Set<string>();
