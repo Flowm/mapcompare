@@ -37,6 +37,35 @@ export function isStacked(mode: Mode): boolean {
   return mode === "sw" || mode === "bl";
 }
 
+/**
+ * The grid tracks a mode implies, for the grid modes only.
+ *
+ * Exhaustive with no `default`, like `paneCountFor` — this used to be a second, parallel switch
+ * inside MapDeck's template block whose `default` arm meant a new mode silently rendered as one
+ * pane instead of failing to build.
+ *
+ * `g3` gets three equal tracks rather than a 2-over-1 layout on purpose: pointer offsets are
+ * mirrored between panes without projecting coordinates, which only holds while panes match in
+ * size.
+ */
+export function layoutFor(mode: Mode): string {
+  switch (mode) {
+    case "g1":
+      return "grid-cols-1 grid-rows-1";
+    case "g2":
+      return "grid-cols-2 grid-rows-1";
+    case "g3":
+      return "grid-cols-3 grid-rows-1";
+    case "g4":
+      return "grid-cols-2 grid-rows-2";
+    // Stacked modes are absolutely positioned, not tiled. A single track keeps the wrapper valid
+    // for the frame in which the mode changes but the class has not yet been swapped.
+    case "sw":
+    case "bl":
+      return "grid-cols-1 grid-rows-1";
+  }
+}
+
 export const MODE_LABELS: Record<Mode, string> = {
   g1: "Single",
   g2: "2 panes",

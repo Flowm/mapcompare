@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clipInsetFor, dividerPercent, fractionFromPointer, MIN_INSET, nudge } from "./swipe";
+import { clampSwipe, clipInsetFor, dividerPercent, fractionFromPointer, MIN_INSET, nudge, paneSide } from "./swipe";
 
 const RECT = { left: 100, width: 800 };
 
@@ -74,5 +74,36 @@ describe("dividerPercent", () => {
   it("formats as a percentage", () => {
     expect(dividerPercent(0.5)).toBe("50.000%");
     expect(dividerPercent(0.375)).toBe("37.500%");
+  });
+});
+
+describe("paneSide", () => {
+  it("puts every pane's chrome on the right in grid modes", () => {
+    for (const mode of ["g1", "g2", "g3", "g4"] as const) {
+      for (const index of [0, 1, 2, 3]) expect(paneSide(mode, index), `${mode}/${index}`).toBe("right");
+    }
+  });
+
+  it("puts the clipped pane's chrome on the side the clip-path keeps", () => {
+    // The pairing that matters, and the reason these two functions live in one module: swipe mode
+    // clips the top pane from the RIGHT, so what survives is its left edge — which is where its
+    // chrome, including a legally required credit, has to be. Getting this pair out of step erases
+    // an attribution rather than merely looking untidy.
+    expect(clipInsetFor("sw", 0.5, true)).toBe("inset(0 50.000% 0 0)");
+    expect(paneSide("sw", 0)).toBe("left");
+    expect(paneSide("sw", 1)).toBe("right");
+
+    // Blink shows the top pane whole or not at all, so either side survives; it follows swipe so
+    // that switching between the two stacked modes does not move the chrome.
+    expect(clipInsetFor("bl", 0.5, true)).toBe("none");
+    expect(paneSide("bl", 0)).toBe("left");
+    expect(paneSide("bl", 1)).toBe("right");
+  });
+
+  it("clamps through the same function the pointer and URL paths use", () => {
+    expect(clampSwipe(0)).toBe(MIN_INSET);
+    expect(clampSwipe(1)).toBe(1 - MIN_INSET);
+    expect(clampSwipe(Number.NaN)).toBe(0.5);
+    expect(clampSwipe(0.5)).toBe(0.5);
   });
 });

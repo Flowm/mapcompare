@@ -6,6 +6,7 @@ import { useMapSync } from "@/composables/useMapSync";
 import { licenceInfo } from "@/lib/providers/licence";
 import type { Provider } from "@/lib/providers/types";
 import { vintageFor } from "@/lib/providers/variants";
+import { SEVERITY_CLASSES } from "@/lib/severity";
 import { formatZoomFit, shortZoomFit, zoomFit, zoomSeverity } from "@/lib/zoomFit";
 
 const props = defineProps<{ provider: Provider; variant: string | undefined; failedTiles: number }>();
@@ -18,12 +19,6 @@ const fit = computed(() => zoomFit(props.provider, camera.value.zoom));
 const fitSeverity = computed(() => zoomSeverity(fit.value));
 const vintage = computed(() => vintageFor(props.provider, props.variant));
 
-const SEVERITY_CLASS = {
-  ok: "border-tier-open/40 bg-ink-950/75 text-tier-open",
-  warn: "border-tier-terms/40 bg-ink-950/75 text-tier-terms",
-  bad: "border-tier-restricted/40 bg-ink-950/75 text-tier-restricted",
-} as const;
-
 /** Drops the whole group to this pane's native ceiling, for an apples-to-apples look. */
 function zoomToNative() {
   if (fit.value.kind !== "upscaled") return;
@@ -33,7 +28,7 @@ function zoomToNative() {
 
 <template>
   <div class="flex flex-wrap items-center justify-end gap-1 text-[10px] leading-none">
-    <span class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASS[licence.severity]" :title="`${provider.licence.note}\n\n${licence.explanation}`">
+    <span class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASSES[licence.severity].chip" :title="`${provider.licence.note}\n\n${licence.explanation}`">
       {{ licence.label }}
     </span>
 
@@ -47,14 +42,14 @@ function zoomToNative() {
       v-if="fit.kind === 'upscaled'"
       type="button"
       class="rounded border px-1.5 py-1 backdrop-blur transition-colors hover:brightness-125"
-      :class="SEVERITY_CLASS[fitSeverity]"
+      :class="SEVERITY_CLASSES[fitSeverity].chip"
       :title="`${formatZoomFit(fit)}. Click to zoom every pane to z${fit.nativeMax}, where this layer is at full resolution.`"
       @click="zoomToNative"
     >
       {{ shortZoomFit(fit) }} ↧
     </button>
 
-    <span v-else-if="fit.kind === 'belowMin'" class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASS[fitSeverity]" :title="formatZoomFit(fit)">
+    <span v-else-if="fit.kind === 'belowMin'" class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASSES[fitSeverity].chip" :title="formatZoomFit(fit)">
       {{ shortZoomFit(fit) }}
     </span>
 
@@ -64,7 +59,7 @@ function zoomToNative() {
     <span
       v-if="failedTiles > 0"
       class="rounded border px-1.5 py-1 backdrop-blur"
-      :class="SEVERITY_CLASS.bad"
+      :class="SEVERITY_CLASSES.bad.chip"
       title="The provider refused these tile requests — usually a rejected API key, a rate limit or an outage. Tiles absent for want of coverage are not counted."
     >
       {{ failedTiles }} tiles refused

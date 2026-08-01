@@ -1,3 +1,4 @@
+import type { Severity } from "../severity";
 import type { LicenceTier } from "./types";
 
 /**
@@ -11,8 +12,8 @@ import type { LicenceTier } from "./types";
 export interface LicenceTierInfo {
   /** One word for the chip. */
   label: string;
-  /** Drives the chip colour. */
-  severity: "ok" | "warn" | "bad";
+  /** Drives the chip colour. `lib/severity.ts` owns what each level looks like. */
+  severity: Severity;
   /** The sentence shown on hover and in the sources list. */
   explanation: string;
 }

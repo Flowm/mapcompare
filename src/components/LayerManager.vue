@@ -10,6 +10,7 @@ import { licenceInfo } from "@/lib/providers/licence";
 import { getProvider, PROVIDERS } from "@/lib/providers/registry";
 import type { ApiKeyName, Provider } from "@/lib/providers/types";
 import { resolveVariant, variantValues } from "@/lib/providers/variants";
+import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * The whole catalogue, and the whole deck, in one column.
@@ -49,9 +50,6 @@ const groups = computed(() => {
 
 /** `activePane` outlives the pane it pointed at when the mode shrinks the deck. */
 const target = computed(() => Math.min(activePane.value, panes.value.length - 1));
-
-const DOT_CLASS = { ok: "bg-tier-open", warn: "bg-tier-terms", bad: "bg-tier-restricted" } as const;
-const TEXT_CLASS = { ok: "text-tier-open", warn: "text-tier-terms", bad: "text-tier-restricted" } as const;
 
 /** Which panes show a given layer — the badges that make a four-up deck legible. */
 function panesUsing(providerId: string): number[] {
@@ -105,7 +103,7 @@ function assign(provider: Provider) {
         <button type="button" class="flex w-full items-center gap-1.5 text-left" :aria-pressed="index === target" @click="focusPane(index)">
           <span class="rounded px-1 font-mono text-[10px]" :class="index === target ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
           <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ getProvider(pane.providerId)?.label ?? pane.providerId }}</span>
-          <span v-if="getProvider(pane.providerId)" class="shrink-0 text-[10px]" :class="TEXT_CLASS[licenceInfo(getProvider(pane.providerId)!.licence.tier).severity]">
+          <span v-if="getProvider(pane.providerId)" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(getProvider(pane.providerId)!.licence.tier).severity].text">
             {{ licenceInfo(getProvider(pane.providerId)!.licence.tier).label }}
           </span>
         </button>
@@ -162,7 +160,7 @@ function assign(provider: Provider) {
           @click="entry.enabled ? assign(entry.provider) : emit('open-keys', entry.disabled!.key)"
         >
           <span class="flex items-center gap-1.5">
-            <span class="size-1.5 shrink-0 rounded-full" :class="DOT_CLASS[licenceInfo(entry.provider.licence.tier).severity]" />
+            <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].dot" />
             <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.provider.label }}</span>
             <span v-for="paneIndex in panesUsing(entry.provider.id)" :key="paneIndex" class="bg-accent text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
               {{ paneIndex + 1 }}
@@ -171,7 +169,9 @@ function assign(provider: Provider) {
           </span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2">
             <span class="text-ink-400 line-clamp-2 text-[11px] leading-snug">{{ entry.provider.note }}</span>
-            <span class="shrink-0 text-[10px]" :class="TEXT_CLASS[licenceInfo(entry.provider.licence.tier).severity]">{{ licenceInfo(entry.provider.licence.tier).label }}</span>
+            <span class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].text">{{
+              licenceInfo(entry.provider.licence.tier).label
+            }}</span>
           </span>
         </button>
       </div>

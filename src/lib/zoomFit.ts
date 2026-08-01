@@ -1,3 +1,5 @@
+import type { Severity } from "./severity";
+
 /**
  * How the current zoom relates to a provider's native resolution.
  *
@@ -55,13 +57,11 @@ export function shortZoomFit(fit: ZoomFit): string {
   }
 }
 
-export type ZoomSeverity = "ok" | "warn" | "bad";
-
 /**
  * Severity for colouring. A 2x upscale is barely noticeable and not worth alarming about; past
  * 8x the pane is mush and the user should know before drawing a conclusion from it.
  */
-export function zoomSeverity(fit: ZoomFit): ZoomSeverity {
+export function zoomSeverity(fit: ZoomFit): Severity {
   if (fit.kind === "native") return "ok";
   if (fit.kind === "belowMin") return "warn";
   if (fit.factor >= 8) return "bad";

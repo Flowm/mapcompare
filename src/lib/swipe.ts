@@ -1,4 +1,4 @@
-import type { Mode } from "./mode";
+import { isStacked, type Mode } from "./mode";
 
 /**
  * Geometry for the stacked comparison modes.
@@ -55,4 +55,18 @@ export function clipInsetFor(mode: Mode, position: number, topVisible: boolean):
 /** Percentage offset for positioning the divider handle. */
 export function dividerPercent(position: number): string {
   return `${(position * 100).toFixed(3)}%`;
+}
+
+/**
+ * Which side of a pane its chrome sits on — picker, chips and credit together.
+ *
+ * Lives here, beside `clipInsetFor`, because the two facts must agree and previously did not live
+ * together: `clipInsetFor` reveals the top pane to the LEFT of the divider, so the top pane's
+ * chrome has to be on the left or `clip-path` erases it. Erasing the attribution that way is a
+ * licensing failure rather than an untidy layout, and the rule was three lines in a template block
+ * that no test could reach while the geometry it had to match had thirteen.
+ */
+export function paneSide(mode: Mode, index: number): "left" | "right" {
+  if (!isStacked(mode)) return "right";
+  return index === 0 ? "left" : "right";
 }

@@ -4,17 +4,15 @@ import { ref, watch } from "vue";
 import { useDialogDismiss } from "@/composables/useDialogDismiss";
 import { BUILD_DATE, BUILD_SHA } from "@/env";
 import { sanitizeAttributionHtml } from "@/lib/attribution";
-import { licenceInfo } from "@/lib/providers/licence";
-import { LICENCE_TIERS } from "@/lib/providers/licence";
+import { licenceInfo, LICENCE_TIERS } from "@/lib/providers/licence";
 import { PROVIDERS } from "@/lib/providers/registry";
+import { SEVERITY_CLASSES } from "@/lib/severity";
 
 const open = defineModel<boolean>("open", { required: true });
 const dialog = ref<HTMLDialogElement>();
 const dismiss = useDialogDismiss(dialog, () => (open.value = false));
 
 watch(open, (isOpen) => (isOpen ? dialog.value?.showModal() : dialog.value?.close()), { immediate: true });
-
-const SEVERITY_CLASS = { ok: "text-tier-open", warn: "text-tier-terms", bad: "text-tier-restricted" } as const;
 
 function coverage(maxzoom: number, note: string | undefined): string {
   return note ?? `to z${maxzoom}`;
@@ -67,11 +65,11 @@ function coverage(maxzoom: number, note: string | undefined): string {
                   target="_blank"
                   rel="noreferrer noopener"
                   class="hover:underline"
-                  :class="SEVERITY_CLASS[licenceInfo(provider.licence.tier).severity]"
+                  :class="SEVERITY_CLASSES[licenceInfo(provider.licence.tier).severity].text"
                 >
                   {{ licenceInfo(provider.licence.tier).label }} ↗
                 </a>
-                <span v-else :class="SEVERITY_CLASS[licenceInfo(provider.licence.tier).severity]">{{ licenceInfo(provider.licence.tier).label }}</span>
+                <span v-else :class="SEVERITY_CLASSES[licenceInfo(provider.licence.tier).severity].text">{{ licenceInfo(provider.licence.tier).label }}</span>
                 <span class="text-ink-600 mt-0.5 block leading-snug">{{ provider.licence.note }}</span>
               </td>
               <!-- eslint-disable-next-line vue/no-v-html -- sanitized; links must stay clickable -->
@@ -85,7 +83,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
         <h3 class="text-xs font-semibold">What the licence chips mean</h3>
         <dl class="mt-1.5 space-y-1 text-[11px] leading-relaxed">
           <div v-for="(info, tier) in LICENCE_TIERS" :key="tier" class="flex gap-2">
-            <dt class="w-28 shrink-0" :class="SEVERITY_CLASS[info.severity]">{{ info.label }}</dt>
+            <dt class="w-28 shrink-0" :class="SEVERITY_CLASSES[info.severity].text">{{ info.label }}</dt>
             <dd class="text-ink-400">{{ info.explanation }}</dd>
           </div>
         </dl>

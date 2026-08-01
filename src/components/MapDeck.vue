@@ -7,8 +7,8 @@ import BlinkControl from "@/components/BlinkControl.vue";
 import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
-import { isStacked } from "@/lib/mode";
-import { clipInsetFor } from "@/lib/swipe";
+import { isStacked, layoutFor } from "@/lib/mode";
+import { clipInsetFor, paneSide } from "@/lib/swipe";
 
 /**
  * Owns THE ONLY v-for over panes, keyed by pane index.
@@ -31,40 +31,18 @@ const { mode, panes, swipe, blinkTopVisible, setPaneLayer, setSwipe } = useAppSt
 const deck = ref<HTMLElement>();
 useElementBounding(deck);
 
-const gridClass = computed(() => {
-  switch (mode.value) {
-    case "g1":
-      return "grid-cols-1 grid-rows-1";
-    case "g2":
-      return "grid-cols-2 grid-rows-1";
-    // Equal tracks rather than a 2-over-1 layout: the shared crosshair mirrors pointer offsets
-    // between panes without projecting coordinates, which only holds while panes match in size.
-    case "g3":
-      return "grid-cols-3 grid-rows-1";
-    case "g4":
-      return "grid-cols-2 grid-rows-2";
-    default:
-      return "grid-cols-1 grid-rows-1";
-  }
-});
+const gridClass = computed(() => layoutFor(mode.value));
+
+/** Which side this pane's chrome lives on. `lib/swipe.ts` owns the rule; see `paneSide`. */
+function sideFor(index: number): "left" | "right" {
+  return paneSide(mode.value, index);
+}
 
 /**
  * In stacked modes both panes fill the deck and the TOP one (index 0) is masked with
  * clip-path. Never size it instead: resizing changes the canvas, so MapLibre re-fits the same
  * camera to a different extent and the seam stops lining up.
  */
-/**
- * Which side a pane's chrome lives on.
- *
- * In stacked modes the top pane is masked to the LEFT of the divider, so its picker, chips and
- * credit all have to sit there too — anything on the right is clipped away, and losing the credit
- * that way is a licensing failure rather than an untidy layout.
- */
-function paneSide(index: number): "left" | "right" {
-  if (!isStacked(mode.value)) return "right";
-  return index === 0 ? "left" : "right";
-}
-
 function paneStyle(index: number) {
   if (!isStacked(mode.value)) return undefined;
   if (index === 0) return { zIndex: 1, clipPath: clipInsetFor(mode.value, swipe.value, blinkTopVisible.value) };
@@ -76,12 +54,12 @@ function paneStyle(index: number) {
   <div ref="deck" class="relative h-full w-full overflow-hidden">
     <div class="h-full w-full" :class="isStacked(mode) ? 'relative' : `bg-ink-700 grid gap-px ${gridClass}`">
       <div v-for="(pane, index) in panes" :key="index" :class="isStacked(mode) ? 'absolute inset-0' : 'relative min-h-0 min-w-0'" :style="paneStyle(index)">
-        <MapPane :index="index" :layer="pane" :side="paneSide(index)" />
+        <MapPane :index="index" :layer="pane" :side="sideFor(index)" />
 
         <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
-        <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="paneSide(index) === 'left' ? 'justify-start' : 'justify-end'">
+        <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="sideFor(index) === 'left' ? 'justify-start' : 'justify-end'">
           <div class="pointer-events-auto">
-            <BasemapPicker :index="index" :layer="pane" :align="paneSide(index)" @update="setPaneLayer(index, $event)" />
+            <BasemapPicker :index="index" :layer="pane" :align="sideFor(index)" @update="setPaneLayer(index, $event)" />
           </div>
         </div>
       </div>

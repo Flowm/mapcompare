@@ -11,6 +11,7 @@ import { licenceInfo } from "@/lib/providers/licence";
 import { PROVIDERS } from "@/lib/providers/registry";
 import type { PaneLayer, Provider } from "@/lib/providers/types";
 import { resolveVariant, variantValues } from "@/lib/providers/variants";
+import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * A pane's own layer switcher: the fastest path from "this pane" to "that layer".
@@ -59,8 +60,6 @@ const groups = computed(() => {
 const current = computed(() => PROVIDERS.find((p) => p.id === props.layer.providerId));
 const variants = computed(() => (current.value?.variant ? variantValues(current.value.variant) : []));
 const selectedVariant = computed(() => (current.value?.variant ? resolveVariant(current.value.variant, props.layer.variant, now.value) : ""));
-
-const DOT_CLASS = { ok: "bg-tier-open", warn: "bg-tier-terms", bad: "bg-tier-restricted" } as const;
 
 const placement = computed(() => {
   const { left, top, bottom, maxHeight } = placePanel(anchor.value, PANEL, { width: viewportWidth.value, height: viewportHeight.value }, props.align ?? "left");
@@ -127,7 +126,12 @@ function showEverything() {
       @click="toggle"
     >
       <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
-      <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="DOT_CLASS[licenceInfo(current.licence.tier).severity]" :title="licenceInfo(current.licence.tier).label" />
+      <span
+        v-if="current"
+        class="size-1.5 shrink-0 rounded-full"
+        :class="SEVERITY_CLASSES[licenceInfo(current.licence.tier).severity].dot"
+        :title="licenceInfo(current.licence.tier).label"
+      />
       <span class="truncate">{{ current?.label ?? layer.providerId }}</span>
       <span class="text-ink-400 shrink-0">▾</span>
     </button>
@@ -175,7 +179,7 @@ function showEverything() {
               :aria-selected="entry.provider.id === layer.providerId"
               @click="choose(entry.provider)"
             >
-              <span class="size-1.5 shrink-0 rounded-full" :class="DOT_CLASS[licenceInfo(entry.provider.licence.tier).severity]" />
+              <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].dot" />
               <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.provider.label }}</span>
             </button>
           </div>
