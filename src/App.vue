@@ -40,10 +40,11 @@ function openKeys(key?: ApiKeyName) {
       <ModeSwitcher />
       <LabelToggle />
       <PresetMenu />
-      <ShareButton />
 
       <div class="ml-auto flex items-center gap-2">
         <span class="text-ink-400 font-mono text-[11px] tabular-nums"> {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }} </span>
+
+        <ShareButton />
 
         <!-- One button, because everything about layers now lives behind it: the catalogue, the
              licence notes, the API keys and the sources table. -->
