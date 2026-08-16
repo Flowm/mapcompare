@@ -1,8 +1,8 @@
 import { useDebounceFn } from "@vueuse/core";
 import { computed, nextTick, ref, watch } from "vue";
 
+import type { Destination } from "@/lib/destination";
 import { type Mode, paneCountFor } from "@/lib/mode";
-import type { Preset } from "@/lib/presets";
 import { DEFAULT_PANE_LAYERS, PROVIDER_IDS } from "@/lib/providers/registry";
 import type { PaneLayer } from "@/lib/providers/types";
 import { type AppStateSnapshot, decodeState, encodeState } from "@/lib/urlState";
@@ -211,13 +211,14 @@ export function useAppState() {
     },
 
     /**
-     * Jumps to a preset. This moves the camera and touches nothing else: the layers on screen
-     * are the comparison the user built, and taking that comparison somewhere else is the whole
-     * job of the place picker. Bearing, pitch and roll reset so the arrival view is the one the
-     * preset's zoom was chosen for.
+     * Goes to a Destination, wherever it came from — a curated preset, a searched place, or a
+     * pasted coordinate. This moves the camera and touches nothing else: the layers on screen are
+     * the comparison the user built, and taking that comparison somewhere else is the whole job of
+     * the search bar. Bearing, pitch and roll reset so the arrival view is the one the zoom was
+     * chosen for.
      */
-    applyPreset(preset: Preset) {
-      moveCamera({ center: [preset.lon, preset.lat], zoom: preset.zoom, bearing: 0, pitch: 0, roll: 0 });
+    goTo(destination: Destination) {
+      moveCamera({ center: destination.center, zoom: destination.zoom, bearing: 0, pitch: 0, roll: 0 });
     },
 
     /**
