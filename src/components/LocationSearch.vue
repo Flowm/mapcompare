@@ -96,8 +96,7 @@ const message = computed(() => {
   const state = outcome.value;
   switch (state.kind) {
     case "too-short":
-      // Below three characters the gazetteer has nothing to return, so this explains the pause
-      // rather than showing a spinner for a request that was never going to be made.
+      // A spinner here would promise a request that is never made.
       return "Keep typing…";
     case "invalid-coordinate":
       return state.hint;

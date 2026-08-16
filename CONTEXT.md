@@ -37,7 +37,7 @@ Distinct from a Place: a Preset is somewhere worth looking, a Place is merely so
 
 ## Place
 
-A named entity (settlement, region, country) found by searching a gazetteer. Carries the
+A named entity (settlement, region, country) found by searching for its name. Carries the
 administrative hierarchy that distinguishes same-named entries from each other.
 
 A Place has no zoom of its own; the zoom to arrive at is inferred from what kind of thing it

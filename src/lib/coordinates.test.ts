@@ -119,7 +119,7 @@ describe("precision drives arrival zoom", () => {
     expect(coordinateToDestination(ok("48.1234567890, 11.1234567890")).zoom).toBe(18);
   });
 
-  it("carries no label, because the gazetteer is one-way", () => {
+  it("carries no label, because place search only answers names", () => {
     expect(coordinateToDestination(ok("48.17, 11.53")).label).toBeUndefined();
   });
 
@@ -134,7 +134,7 @@ describe("things that are not coordinates", () => {
     expect(parseCoordinate(input).kind).toBe("none");
   });
 
-  it("leaves postal codes alone, since the gazetteer accepts them", () => {
+  it("leaves postal codes alone, since place search accepts them", () => {
     expect(parseCoordinate("80331").kind).toBe("none");
     expect(parseCoordinate("80331, Germany").kind).toBe("none");
   });
@@ -145,8 +145,8 @@ describe("things that are not coordinates", () => {
   });
 
   it.each(["Sweden", "Turkey", "Greece", "Bremen", "Perth", "Denver", "Regensburg", "Essen", "Bern"])("keeps %s searchable, which supporting geohash would not", (input) => {
-    // Every one of these is a valid geohash. Recognising them as coordinates would short-circuit
-    // the gazetteer and fly somewhere else entirely — the reason geohash is not supported.
+    // Every one of these is a valid geohash. Recognising them as coordinates would skip place
+    // search and fly somewhere else entirely, which is why geohash is not supported.
     expect(parseCoordinate(input).kind).toBe("none");
   });
 

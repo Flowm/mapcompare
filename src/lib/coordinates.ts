@@ -29,7 +29,7 @@ export interface ParsedCoordinate {
 
 /**
  * `invalid` is the difference between "no results for 48° 10' N" and telling someone their
- * coordinate is missing its longitude. Falling through to the gazetteer with coordinate-shaped
+ * coordinate is missing its longitude. Falling through to place search with coordinate-shaped
  * input produces a confidently empty answer to a question that was 95% right.
  */
 export type CoordinateParse = { kind: "ok"; value: ParsedCoordinate } | { kind: "invalid"; hint: string } | { kind: "none" };
@@ -58,12 +58,10 @@ const BODY =
   `)?`;
 
 /**
- * The hemisphere letter can lead or trail, and which one it is has to be decided before the body is
- * matched rather than after.
- *
- * A single pattern with an optional group at each end reads `N48.17 E11.53` as one component whose
- * trailing letter is the *next* component's leading one, and then the pair no longer splits. So a
- * leading letter wins outright and suppresses the trailing group entirely.
+ * The hemisphere letter can lead or trail, so a leading one wins outright and suppresses the
+ * trailing group. One pattern with an optional group at each end instead reads `N48.17 E11.53` as
+ * a single component whose trailing letter is the *next* component's leading one, and then the
+ * pair no longer splits.
  */
 const HEMISPHERE_FIRST = new RegExp(`^([NSEW])\\s*${BODY}`, "i");
 const HEMISPHERE_LAST = new RegExp(`^${BODY}\\s*([NSEW])?`, "i");
@@ -78,8 +76,6 @@ const HEMISPHERE_LAST = new RegExp(`^${BODY}\\s*([NSEW])?`, "i");
 const COORDINATE_PUNCTUATION = new RegExp(`\\d\\s*(?:${DEGREE}|${MINUTE}|${SECOND}|[NSEW]\\b)|(?:^|[\\s,])[NSEW]\\s*[+-]?\\d`, "i");
 
 /**
- * The refused notations, recognised well enough to name themselves in the error.
- *
  * Being told "UTM is not supported" is worth several lines of regex. Being told a UTM string needs
  * a latitude sends someone off to check their numbers for a fault that is not there.
  */
@@ -207,7 +203,7 @@ export function parseCoordinate(input: string): CoordinateParse {
     if (unsupported !== undefined) return { kind: "invalid", hint: unsupported.hint };
 
     // Only claim the input when it is visibly a coordinate. Bare digits are left alone on purpose:
-    // the gazetteer takes postal codes, so `80331` is a search, not a broken position.
+    // place search takes postal codes, so `80331` is a search, not a broken position.
     return COORDINATE_PUNCTUATION.test(trimmed) ? { kind: "invalid", hint: "That looks like a coordinate but needs both a latitude and a longitude." } : { kind: "none" };
   }
 

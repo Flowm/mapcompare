@@ -4,10 +4,10 @@ import type { Preset } from "./presets";
  * Somewhere the camera can be sent, and how far in to be on arrival.
  *
  * Three things produce a Destination, and they know wildly different amounts. A Preset carries a
- * zoom picked by hand for the thing it wants to show. A Place carries none at all: the gazetteer
- * returns a bare point with no extent and no bounding box, so arrival zoom has to be inferred from
- * what kind of thing it is and how big it is. A Coordinate carries no name and can never acquire
- * one, because the gazetteer only answers names.
+ * zoom picked by hand for the thing it wants to show. A Place carries none at all: the geocoding
+ * API returns a bare point with no extent and no bounding box, so arrival zoom has to be inferred
+ * from what kind of thing it is and how big it is. A Coordinate carries no name and can never
+ * acquire one, because place search only answers names.
  *
  * A Destination deliberately carries no layer information, for exactly the reason `presets.ts`
  * gives: the panes are the comparison the user built, and going somewhere takes that comparison
@@ -22,7 +22,7 @@ export interface Destination {
 }
 
 /**
- * A named entity from the gazetteer, reduced to the fields that identify it on screen or decide
+ * A named entity from place search, reduced to the fields that identify it on screen or decide
  * where the camera stops. Everything the API also returns — elevation, timezone, the lower admin
  * levels, postcodes — is dropped at the edge rather than carried around unused.
  */
@@ -59,8 +59,6 @@ export function zoomForPrecision(precision: number): number {
 }
 
 /**
- * For places whose size cannot be read off a population count.
- *
  * Nothing here is precise, and it does not need to be: it decides whether arriving at a country
  * shows the country or one field in it.
  */
@@ -129,7 +127,7 @@ export function placeContext(place: Place): string {
  * The context line is not enough on its own: two distinct places routinely share a name *and* a
  * region. Bavaria has two Germerings, 55 km apart, and every other visible field matches, so the
  * rows come out indistinguishable. The coordinate is the one field guaranteed to differ, because
- * a gazetteer entry is a position.
+ * a search result is a position.
  *
  * Two decimals and degree markers, matching how meteocompare prints the same thing: ~1.1 km, which
  * separates settlements without implying a centroid is known any better than it is.

@@ -1,7 +1,7 @@
 import type { Place } from "@/lib/destination";
 
 /**
- * The gazetteer, which is Open-Meteo's geocoding endpoint over GeoNames data.
+ * Place search, served by Open-Meteo's geocoding endpoint over GeoNames data.
  *
  * Four things about this API decide the shape of everything below, and all four are the kind of
  * detail that produces a confident crash rather than an error message:
