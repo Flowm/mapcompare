@@ -10,13 +10,19 @@ import { useAppState } from "./useAppState";
  * because returning to the reference layer takes no thought; the latch is for when you want to
  * stay on the other layer and look properly. The on-screen control does the same as `Space`.
  */
+/**
+ * Whether a key event is somebody typing rather than reaching for a shortcut.
+ *
+ * Exported because the search bar's `/` needs exactly the same guard, and two copies would drift:
+ * the moment one of them learns about a new kind of field, the other one starts eating keystrokes.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
 export function useKeyboardShortcuts() {
   const { mode, setMode, setBlinkTopVisible, toggleBlink } = useAppState();
-
-  function isTypingTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-  }
 
   /** Space and Enter already activate these, so handling it here would fire the action twice. */
   function isActivatable(target: EventTarget | null): boolean {

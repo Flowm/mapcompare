@@ -89,21 +89,26 @@ describe("panes", () => {
   });
 });
 
-describe("applyPreset", () => {
+describe("goTo", () => {
   it("moves the camera and leaves the layers alone", () => {
     state.setMode("g2");
     state.setPaneLayer(0, { providerId: "gibs.modis.terra" });
     const before = state.panes.value.map((p) => p.providerId);
 
-    state.applyPreset({ name: "Somewhere", why: "test", lat: 1.5, lon: 2.5, zoom: 9 });
+    state.goTo({ label: "Somewhere", center: [2.5, 1.5], zoom: 9 });
 
     expect(state.camera.value).toMatchObject({ center: [2.5, 1.5], zoom: 9, bearing: 0, pitch: 0, roll: 0 });
     expect(state.panes.value.map((p) => p.providerId)).toEqual(before);
   });
 
-  it("clamps a preset the camera owner would reject", () => {
-    state.applyPreset({ name: "Too close", why: "test", lat: 0, lon: 0, zoom: 99 });
+  it("clamps a destination the camera owner would reject", () => {
+    state.goTo({ label: "Too close", center: [0, 0], zoom: 99 });
     // Guarded by code on the write path now, not only by a test asserting zoom <= 22 over the data.
     expect(state.camera.value.zoom).toBe(22);
+  });
+
+  it("levels the camera, so arrival matches the view the zoom was chosen for", () => {
+    state.goTo({ center: [10, 20], zoom: 12 });
+    expect(state.camera.value).toMatchObject({ bearing: 0, pitch: 0, roll: 0 });
   });
 });

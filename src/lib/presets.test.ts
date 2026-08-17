@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { PRESETS } from "./presets";
 
 describe("presets", () => {
+  it("stays short enough to read without scrolling", () => {
+    // The list is the search bar's empty state, not an index of everywhere.
+    // Asserted rather than trusted, because "just one more interesting place" is how it grew last
+    // time, and a scroll wall is the one thing an empty state must not be.
+    expect(PRESETS.length).toBeLessThanOrEqual(6);
+  });
+
   it("has unique names", () => {
     const names = PRESETS.map((p) => p.name);
     expect(new Set(names).size).toBe(names.length);

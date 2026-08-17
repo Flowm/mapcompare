@@ -102,6 +102,17 @@ function coverage(maxzoom: number, note: string | undefined): string {
         </ul>
       </div>
 
+      <div class="text-ink-400 text-[11px] leading-relaxed">
+        <h3 class="text-ink-50 text-xs font-semibold">Place search</h3>
+        <p class="mt-1">
+          Location names come from
+          <a href="https://www.geonames.org" target="_blank" rel="noreferrer noopener" class="underline">GeoNames</a>, served by
+          <a href="https://open-meteo.com" target="_blank" rel="noreferrer noopener" class="underline">Open-Meteo</a>, under
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer noopener" class="underline">CC BY 4.0</a>. Coordinates you type are read in the
+          browser and never sent anywhere.
+        </p>
+      </div>
+
       <p class="border-ink-800 text-ink-600 border-t pt-3 font-mono text-[10px]">build {{ BUILD_SHA }} · {{ BUILD_DATE }}</p>
     </div>
   </dialog>

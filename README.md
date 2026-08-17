@@ -34,8 +34,10 @@ over the same street. Hence this.
 - **Licence, vintage, overzoom and missing-tile chips** per pane
 - **A layer manager** holding the whole catalogue, the licence notes, the API keys and the sources
   table, with a one-line switcher on every pane for the everyday job
-- **Shareable URLs** — every comparison is a link — and preset locations chosen to expose
-  provider differences
+- **Shareable URLs** — every comparison is a link
+- **Place search** (`/` to focus): type a name, or paste a coordinate in decimal degrees, with
+  hemisphere letters, or in degrees/minutes/seconds. Coordinates are read in the browser and skip
+  the network entirely. Empty, it offers locations chosen to expose provider differences
 - No account, no backend, no tracking
 
 ## The layers
