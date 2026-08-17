@@ -93,10 +93,17 @@ looking at. Also the source of the label overlay.
 
 ### Deliberately excluded
 
-Google Maps tiles (terms forbid non-Google renderers) · Bing Aerial (Bing Maps for Enterprise is
-deprecated, no new keys since June 2025) · LINZ New Zealand (needs a key _and_ is NZ-only) ·
-Copernicus Data Space (needs a pre-built Sentinel Hub configuration, not an env var) ·
-Planet and Maxar (no free tier) · OpenAerialMap (per-image, not a basemap).
+- **Google Maps tiles** — the Map Tiles API
+  [allows third-party renderers](https://developers.google.com/maps/documentation/tile/policies),
+  and [maplibre-google-maps](https://github.com/traccar/maplibre-google-maps) renders them. The
+  terms are the obstacle, and they differ by billing region: outside the EEA they forbid Google
+  ["with or near a non-Google Map"](https://cloud.google.com/maps-platform/terms/), which is what a
+  pane comparison is; inside the EEA that clause is absent, but
+  [satellite tiles are unavailable](https://developers.google.com/maps/comms/eea/map-tiles).
+- **Bing Aerial** — Bing Maps for Enterprise is deprecated, no new keys since June 2025.
+- **Copernicus Data Space** — needs a pre-built Sentinel Hub configuration, not an env var.
+- **Planet and Maxar** — no free tier.
+- **OpenAerialMap** — per-image, not a basemap.
 
 ## Licence chips
 
