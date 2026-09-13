@@ -35,12 +35,12 @@ export default defineConfig({
     __BUILD_SHA__: JSON.stringify(buildSha),
   },
   build: {
-    // maplibre-gl minifies to ~930 kB (~240 kB gzipped) and lands in its own dedicated
+    // maplibre-gl minifies to ~1010 kB (~270 kB gzipped) and lands in its own dedicated
     // chunk. It is the whole point of the app and cannot be split or lazily loaded to any
     // benefit, so the default 500 kB advisory would fire on every build for a chunk that is
     // exactly the expected size. Raised to sit just above it, so a genuine regression in any
     // other chunk still trips the warning.
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1100,
     rolldownOptions: {
       output: {
         codeSplitting: {
