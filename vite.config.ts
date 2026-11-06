@@ -4,6 +4,7 @@ import { execSync } from "node:child_process";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 const buildDate = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 let buildSha = "dev";
@@ -16,10 +17,49 @@ try {
 // The preview harness hands the port chosen in .claude/launch.json to Vite
 const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 
+// The chrome colour: matches the logo tile and the theme-color meta in index.html.
+const themeColor = "#0b0f14";
+
 export default defineConfig({
   server: { port, strictPort: port !== undefined },
   preview: { port, strictPort: port !== undefined },
-  plugins: [vue(), tailwindcss()],
+  plugins: [
+    vue(),
+    tailwindcss(),
+    VitePWA({
+      registerType: "prompt",
+      manifest: {
+        name: "mapcompare",
+        short_name: "mapcompare",
+        description: "Compare satellite and aerial basemaps side by side, with resolution, vintage and licence shown for each.",
+        theme_color: themeColor,
+        background_color: themeColor,
+        display: "standalone",
+        start_url: "/",
+        scope: "/",
+        id: "mapcompare",
+        orientation: "natural",
+      },
+      workbox: {
+        // Precache the built app shell only. Tiles, styles, sprites and glyphs come from
+        // third-party providers whose terms mostly forbid caching them, and offline maps are
+        // out of scope, so there is deliberately no runtimeCaching for them either.
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2}"],
+      },
+      pwaAssets: {
+        htmlPreset: "2023",
+        preset: {
+          transparent: { sizes: [64, 192, 512], favicons: [[48, "favicon.ico"]] },
+          maskable: { sizes: [512], padding: 0.15, resizeOptions: { background: themeColor } },
+          apple: { sizes: [180], padding: 0.15, resizeOptions: { background: themeColor } },
+        },
+        image: "public/logo.svg",
+      },
+      devOptions: {
+        type: "module",
+      },
+    }),
+  ],
   resolve: {
     tsconfigPaths: true,
   },
