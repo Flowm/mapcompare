@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { getProvider } from "./providers/registry";
+import { getProvider } from "@/lib/providers/registry";
+
 import { formatZoomFit, shortZoomFit, zoomFit, zoomSeverity } from "./zoomFit";
 
 const eox = { minzoom: 0, maxzoom: 14 };

@@ -7,6 +7,7 @@ import LayerManager from "@/components/LayerManager.vue";
 import LocationSearch from "@/components/LocationSearch.vue";
 import MapDeck from "@/components/MapDeck.vue";
 import ModeSwitcher from "@/components/ModeSwitcher.vue";
+import PWAUpdateBar from "@/components/PWAUpdateBar.vue";
 import ShareButton from "@/components/ShareButton.vue";
 import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
@@ -72,5 +73,6 @@ function openKeys(key?: ApiKeyName) {
 
     <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
     <SourcesDialog v-model:open="sourcesOpen" />
+    <PWAUpdateBar />
   </div>
 </template>

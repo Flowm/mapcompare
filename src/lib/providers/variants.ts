@@ -1,4 +1,5 @@
-import { clampDate, parseUtcDate, yesterdayUTC } from "../dates";
+import { clampDate, parseUtcDate, yesterdayUTC } from "@/lib/dates";
+
 import type { Provider, VariantSpec, VariantValue } from "./types";
 
 /**

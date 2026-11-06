@@ -1,4 +1,5 @@
-import type { Severity } from "../severity";
+import type { Severity } from "@/lib/severity";
+
 import type { LicenceTier } from "./types";
 
 /**
