@@ -56,7 +56,8 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
+    // Tests that need a DOM opt in per file with `// @vitest-environment jsdom`.
+    environment: "node",
     include: ["src/**/*.test.ts"],
   },
 });
