@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { PaneLayer } from "@/lib/providers/types";
+
 import { MODES } from "./mode";
 import { paneCountFor } from "./mode";
-import type { PaneLayer } from "./providers/types";
 import { fractionFromPointer, MIN_INSET } from "./swipe";
 import { type AppStateSnapshot, canonicalise, decodeState, encodeState } from "./urlState";
 

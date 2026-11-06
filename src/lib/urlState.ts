@@ -1,6 +1,7 @@
+import type { PaneLayer } from "@/lib/providers/types";
+
 import { clampCamera, type CameraState, ZOOM_LIMITS } from "./camera";
 import { isMode, type Mode, paneCountFor } from "./mode";
-import type { PaneLayer } from "./providers/types";
 import { clampSwipe } from "./swipe";
 
 /**
