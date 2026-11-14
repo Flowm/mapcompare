@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Re-checks the registry's two riskiest fields against the live services: the measured
- * `maxzoom` ceiling and the `tileSize` in pixels.
+ * Re-checks the registry against the live services: the measured `maxzoom` ceiling, the
+ * `tileSize` in pixels, and — for Layers with Times — that the service is still publishing.
  *
  * Both fail silently in the browser. A `maxzoom` set too high sprays 404s and blanks the
  * pane; a wrong `tileSize` renders plausible imagery a whole zoom level off, which in a
@@ -13,12 +13,23 @@
  *
  *   pnpm run probe-tiles
  *
- * Keyed providers are skipped unless the matching VITE_* var is exported into the shell.
+ * The freshness check exists because Layers die quietly: Suomi NPP stopped eleven days before
+ * this was written, and its tiles simply began to 404. A time-aware Layer is FAIL when its newest
+ * Time has fallen ten steps (and at least three days) behind the clock — the same rule the app
+ * uses to mark a Layer "ended" — or when its service cannot say which Times it has.
+ *
+ * Times are resolved with the app's own `time.ts` and `discovery.ts`, imported straight from
+ * src: Node strips their types, and neither imports anything that needs a bundler.
+ *
+ * Keyed Layers are skipped unless the matching VITE_* var is exported into the shell.
  * Redirects are followed: Esri Wayback answers 301 for most tiles, pointing at whichever
  * release last changed that tile, which browsers follow transparently.
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+
+import { canDiscover, discoverTimes, wmsTemplate } from "../src/lib/layers/discovery.ts";
+import { declaredTimeDomain, discoveredTimeDomain, endedOn, formatTime, latestTime, resolveTime } from "../src/lib/layers/time.ts";
 
 /**
  * Three probe points, chosen so that each catches a different way "global" turns out to be a lie.
@@ -90,51 +101,140 @@ function imageSize(buf) {
   return null;
 }
 
+const REGISTRY = readFileSync(new URL("../src/lib/layers/registry.ts", import.meta.url), "utf8");
+
+/** A module-level constant of the registry: a string literal, or a product like `24 * 60`. */
+function constant(name, src = REGISTRY) {
+  const raw = new RegExp(`const ${name} = ([^;]+);`).exec(src)?.[1]?.trim();
+  if (raw === undefined) throw new Error(`registry.ts declares no constant ${name}`);
+  return /^["']/.test(raw) ? raw.slice(1, -1) : number(raw, src);
+}
+
+/** `4 * DAILY`, `90`, `0.25`: the only arithmetic the registry's literals use. */
+function number(expr, src = REGISTRY) {
+  return expr.split("*").reduce((product, factor) => {
+    const f = factor.trim();
+    return product * (/^[\d.]+$/.test(f) ? Number(f) : constant(f, src));
+  }, 1);
+}
+
+function stringField(body, name) {
+  const match = new RegExp(`\\n\\s{4}${name}:\\s*(?:"([^"]+)"|([A-Z_]+))`).exec(body);
+  if (!match) return undefined;
+  return match[1] ?? constant(match[2]);
+}
+
+/** The Time spec, in the shape `time.ts` expects. */
+function timeSpec(body) {
+  const block = /\n\s{4}time: \{([\s\S]*?)\},?\n\s{2}\}/.exec(`${body}\n  }`)?.[1] ?? /\n\s{4}time: (\{.*\}),?\n/.exec(body)?.[1];
+  if (!block) return undefined;
+  const precision = /precision: "(\w+)"/.exec(block)?.[1];
+  let values;
+  if (block.includes("WAYBACK_RELEASES")) {
+    const file = readFileSync(new URL("../src/lib/layers/waybackReleases.ts", import.meta.url), "utf8");
+    values = [...file.matchAll(/\{ time: "([^"]+)", param: "([^"]+)" \}/g)].map((m) => ({ time: m[1], param: m[2] }));
+  } else if (block.includes("values:")) {
+    values = [...block.matchAll(/\{ time: "([^"]+)"(?:, param: "([^"]+)")? \}/g)].map((m) => ({ time: m[1], ...(m[2] ? { param: m[2] } : {}) }));
+  }
+  const seriesBlock = /series: \{([^}]*)\}/.exec(block)?.[1];
+  const series = seriesBlock && {
+    stepMinutes: number(/stepMinutes: ([^,}]+)/.exec(seriesBlock)[1]),
+    ...(/earliest: "([^"]+)"/.test(seriesBlock) ? { earliest: /earliest: "([^"]+)"/.exec(seriesBlock)[1] } : {}),
+    ...(/latencyMinutes: ([^,}]+)/.test(seriesBlock) ? { latencyMinutes: number(/latencyMinutes: ([^,}]+)/.exec(seriesBlock)[1]) } : {}),
+    ...(/retentionDays: ([^,}]+)/.test(seriesBlock) ? { retentionDays: number(/retentionDays: ([^,}]+)/.exec(seriesBlock)[1]) } : {}),
+  };
+  return { precision, label: "", ...(values ? { values } : {}), ...(series ? { series } : {}) };
+}
+
 /**
- * Pulls the provider table out of registry.ts without a TS toolchain: this script is plain
- * node, and the fields it needs are all literals.
+ * Pulls the Layer table out of registry.ts without a TS toolchain: the registry imports a
+ * generated module by an extensionless path, which Node will not resolve, and the fields this
+ * needs are all literals.
  */
 function readRegistry() {
-  const src = readFileSync(new URL("../src/lib/providers/registry.ts", import.meta.url), "utf8");
-  const providers = [];
-  for (const [, block] of src.matchAll(/\{\s*\n\s{4}id: "([\s\S]*?)\n\s{2}\},\n/g)) {
-    const body = block;
-    const id = /^([\w.]+)"/.exec(body)?.[1];
-    const kind = /kind: "(raster|style)"/.exec(body)?.[1];
-    if (!id || kind !== "raster") continue;
-    const tile = /tiles: \["([^"]+)"\]/.exec(body)?.[1];
-    const tileSize = Number(/tileSize: (\d+)/.exec(body)?.[1]);
-    const maxzoom = Number(/maxzoom: (\d+)/.exec(body)?.[1]);
-    const requiresKey = /requiresKey: "(\w+)"/.exec(body)?.[1];
-    // `\s*` because the formatter wraps a long note onto its own line, and a coverageNote that
-    // reads as absent silently turns documented patchiness back into a hard failure.
-    const coverageNote = /coverageNote:\s*"/.test(body);
-    const token = /token: "\{(\w+)\}"/.exec(body)?.[1];
-    const variantKind = /variant: \{ kind: "(\w+)"/.exec(body)?.[1];
-    // The LAST declared value, because that is what the app shows. `defaultVariant` resolves
-    // "latest" to `values.at(-1)`, and the registry keeps values oldest-first — so probing the
-    // first one verified a vintage nobody sees while leaving the default unchecked. EOX was
-    // verified at 2018 and shipped defaulting to 2025; Wayback at a 2014 release and shipped on a
-    // 2024 one.
-    const values = [...body.matchAll(/\{ value: "([^"]+)"/g)].map((m) => m[1]);
-    const defaultValue = values.at(-1);
-    if (tile && tileSize && maxzoom) providers.push({ id, tile, tileSize, maxzoom, requiresKey, token, variantKind, defaultValue, coverageNote });
+  const layers = [];
+  for (const [, block] of REGISTRY.matchAll(/\{\s*\n\s{4}id: "([\s\S]*?)\n\s{2}\},\n/g)) {
+    const body = `\n    id: "${block}`;
+    const id = /^([\w.]+)"/.exec(block)?.[1];
+    const kind = /\n\s{4}kind: "(\w+)"/.exec(body)?.[1];
+    if (!id || kind === "style" || kind === "cog") continue;
+    const layer = {
+      id,
+      kind,
+      tileSize: Number(/tileSize: (\d+)/.exec(body)?.[1] ?? 256),
+      maxzoom: Number(/maxzoom: (\d+)/.exec(body)?.[1]),
+      requiresKey: /requiresKey: "(\w+)"/.exec(body)?.[1],
+      // `\s*` because the formatter wraps a long note onto its own line, and a coverageNote that
+      // reads as absent silently turns documented patchiness back into a hard failure.
+      coverageNote: /coverageNote:\s*"/.test(body),
+      probePoint: (() => {
+        const m = /probePoint: \{ lat: (-?[\d.]+), lon: (-?[\d.]+), name: "([^"]+)" \}/.exec(body);
+        return m ? { lat: Number(m[1]), lon: Number(m[2]), name: m[3] } : undefined;
+      })(),
+      daylightOnly: /daylightOnly: true/.test(body),
+      time: timeSpec(body),
+      tile: /tiles: \["([^"]+)"\]/.exec(body)?.[1],
+      capabilities: stringField(body, "capabilities"),
+      layer: stringField(body, "layer"),
+      url: stringField(body, "url"),
+      layers: stringField(body, "layers"),
+      collection: stringField(body, "collection"),
+      asset: stringField(body, "asset"),
+    };
+    // A WMS tile is a GetMap request for the tile's bbox, built exactly as the app builds it.
+    if (kind === "wms") layer.tile = wmsTemplate(layer);
+    layers.push(layer);
   }
-  return providers;
+  return layers;
+}
+
+async function text(url) {
+  const res = await fetch(url, { headers: { "User-Agent": "mapcompare-probe" } });
+  if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`);
+  return res.text();
+}
+
+/**
+ * The app's own discovery, through Node's fetch. Unlike the app, a service that cannot say which
+ * Times it has is a failure here rather than a reason to fall back to the declared rules.
+ */
+async function timeDomain(p, now) {
+  if (!canDiscover(p)) return declaredTimeDomain(p.time, now);
+  const domain = discoveredTimeDomain(await discoverTimes(p, text), p.time.precision, now);
+  if (!domain) throw new Error(`the service describes no Times for ${p.layer ?? p.layers ?? p.collection}`);
+  return domain;
+}
+
+/**
+ * The point with the sun overhead at a moment: its longitude from the hour, its latitude from the
+ * season. Where a daylight-only Layer is checked, since anywhere else may be night.
+ */
+function subsolarPoint(ms) {
+  const d = new Date(ms);
+  const hours = d.getUTCHours() + d.getUTCMinutes() / 60;
+  const lon = (((((12 - hours) * 15 + 180) % 360) + 360) % 360) - 180;
+  const dayOfYear = (ms - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86_400_000;
+  const lat = -23.44 * Math.cos(((2 * Math.PI) / 365) * (dayOfYear + 10));
+  return { lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100, name: "under the sun" };
+}
+
+/** A Web Mercator tile's bbox, for WMS. */
+function bbox(z, x, y) {
+  const half = 20037508.342789244;
+  const size = (2 * half) / 2 ** z;
+  return [-half + x * size, half - (y + 1) * size, -half + (x + 1) * size, half - y * size].join(",");
 }
 
 function buildUrl(p, z, point) {
   const { x, y } = tileXY(point.lat, point.lon, z);
-  let url = p.tile.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
+  let url = p.tile
+    .replaceAll("{z}", String(z))
+    .replaceAll("{x}", String(x))
+    .replaceAll("{y}", String(y))
+    .replaceAll("{bbox-epsg-3857}", bbox(z, x, y));
   if (p.requiresKey) url = url.replaceAll("{KEY}", process.env[p.requiresKey] ?? "");
-  if (p.token) {
-    // Keyed off `kind`, not off the token's name: a date provider using some token other than
-    // {DATE} used to fall through to the fixed-list branch, produce an empty substitution and fail
-    // for a reason that had nothing to do with the endpoint.
-    // Both branches mirror `variants.defaultVariant`, so what is probed is what the app requests.
-    const value = p.variantKind === "date" ? new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) : (p.defaultValue ?? "");
-    url = url.replaceAll(`{${p.token}}`, value);
-  }
+  // The Time the app shows by default: the latest, resolved by the app's own rules.
+  if (p.resolvedTime) url = url.replaceAll("{TIME}", p.resolvedTime.value).replaceAll("{YEAR}", p.resolvedTime.year);
   return url;
 }
 
@@ -173,16 +273,25 @@ function isNoData(result, controlHash) {
   return result.placeholder || (controlHash !== undefined && result.hash === controlHash);
 }
 
-const providers = readRegistry();
-if (providers.length === 0) {
-  console.error("Parsed no raster providers out of registry.ts — the file shape has changed.");
+const layers = readRegistry();
+if (layers.length === 0) {
+  console.error("Parsed no tiled Layers out of registry.ts — the file shape has changed.");
   process.exit(1);
 }
 
+const now = new Date();
 let problems = 0;
-console.log(`Probing ${providers.length} raster providers at their declared maxzoom and one level above.\n`);
+console.log(`Probing ${layers.length} Layers at their declared maxzoom and one level above, and every time-aware Layer for freshness.\n`);
 
-for (const p of providers) {
+function report(p, errors, notes, detail) {
+  if (errors.length > 0) problems += 1;
+  const label = errors.length > 0 ? "FAIL" : "ok  ";
+  console.log(`  ${label}  ${p.id.padEnd(30)} ${detail}`);
+  for (const e of errors) console.log(`        ${e}`);
+  if (errors.length === 0) for (const n of notes) console.log(`        note: ${n}`);
+}
+
+for (const p of layers) {
   if (p.requiresKey && !process.env[p.requiresKey]) {
     console.log(`  SKIP  ${p.id.padEnd(30)} (${p.requiresKey} not exported)`);
     continue;
@@ -191,44 +300,74 @@ for (const p of providers) {
   // Only two conditions are actual problems, because the two directions are not symmetric. A
   // ceiling set too HIGH makes MapLibre request tiles that do not exist, so the pane blanks and
   // sprays 404s. A ceiling set too LOW just means MapLibre upsamples, so the pane goes blurry
-  // and the overzoom badge says so — which for several providers here is the deliberate choice,
+  // and the overzoom badge says so — which for several Layers here is the deliberate choice,
   // because the server will happily upsample and pass interpolation off as detail. So "z+1 also
   // works" is reported as information, never as a failure.
   const errors = [];
   const notes = [];
 
+  // 0. Freshness. Resolved first, because the tiles below are requested at the Time it finds.
+  let freshness = "";
+  if (p.time) {
+    try {
+      const domain = await timeDomain(p, now);
+      p.resolvedTime = resolveTime(domain, undefined);
+      if (!p.resolvedTime) errors.push("the service lists no Times at all");
+      else {
+        const ended = endedOn(domain, p.time, now);
+        if (ended) errors.push(`stale: the newest picture is from ${formatTime(latestTime(domain), p.time.precision)}, far behind its cadence — the app marks it ended ${ended}`);
+        freshness = `latest ${p.resolvedTime.time}`;
+      }
+    } catch (err) {
+      errors.push(`cannot read its Times: ${err.message}`);
+    }
+  }
+
+  // A STAC Layer's pictures are COGs, read by range requests rather than as tiles.
+  if (p.kind === "stac") {
+    if (p.resolvedTime) {
+      const res = await fetch(p.resolvedTime.value, { headers: { Range: "bytes=0-1023", "User-Agent": "mapcompare-probe" } });
+      if (res.status !== 206) errors.push(`the newest COG answers ${res.status} to a range request, not 206 — the browser cannot read it`);
+      if (res.headers.get("access-control-allow-origin") === null) notes.push("the COG response carries no CORS header; check it from a browser");
+    }
+    report(p, errors, notes, freshness);
+    continue;
+  }
+  if (!p.tile || (p.time && !p.resolvedTime)) {
+    report(p, errors, notes, freshness);
+    continue;
+  }
+
+  // A Layer that does not cover the whole Earth is checked where it does, and only there.
+  const points = p.daylightOnly ? [subsolarPoint(Date.parse(p.resolvedTime.time))] : p.probePoint ? [p.probePoint] : POINTS;
+  const coverageZoom = Math.min(COVERAGE_ZOOM, p.maxzoom);
+
   // 1. Coverage, checked at a LOW zoom at every point. Any layer claiming global reach must
   //    have something everywhere at z8. This is the check that separates a genuine coverage gap
   //    (Sentinel-2 cloudless 2017 outside Europe) from the ordinary sparsity of high-resolution
-  //    imagery, which only shows up near a provider's ceiling.
-  const lowControl = await probe(buildUrl(p, COVERAGE_ZOOM, CONTROL));
-  for (const point of POINTS) {
-    const low = await probe(buildUrl(p, COVERAGE_ZOOM, point));
-    if (low.status !== 200) errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns ${low.status} — no coverage where the registry implies global reach`);
+  //    imagery, which only shows up near a Layer's ceiling.
+  const lowControl = await probe(buildUrl(p, coverageZoom, CONTROL));
+  for (const point of points) {
+    const low = await probe(buildUrl(p, coverageZoom, point));
+    if (low.status !== 200) errors.push(`z${coverageZoom} at ${point.name} returns ${low.status} — no coverage where the registry implies reach`);
     else if (isNoData(low, lowControl.hash))
-      errors.push(`z${COVERAGE_ZOOM} at ${point.name} returns a ${low.bytes}-byte no-data placeholder, not imagery — a 200, so no error handler can see it`);
+      errors.push(`z${coverageZoom} at ${point.name} returns a ${low.bytes}-byte no-data placeholder, not imagery — a 200, so no error handler can see it`);
   }
 
-  // 2. The declared ceiling and tile size, checked at EVERY point against that provider's own
+  // 2. The declared ceiling and tile size, checked at EVERY point against that Layer's own
   //    open-ocean no-data tile. Checking Amsterdam alone hid a real defect: Esri World Imagery
   //    served Amsterdam to z20 while handing Tokyo the grey "Map data not yet available" JPEG at
   //    the same zoom — full-size, valid, and a 200, so the pane went grey and nothing complained.
   //
-  //    A ceiling set too high makes MapLibre request tiles that are missing, so panes blank. Too
-  //    low merely upsamples, which several providers here declare deliberately, so "z+1 also
-  //    works" is information, never a failure.
-  //
-  //    Away from Amsterdam the two ways of running out of data are judged differently, because
-  //    the app can only report one of them. A 404 reaches the pane as a "tiles missing" badge
-  //    with the coverageNote in its tooltip, so for a provider that HAS a coverageNote — a
+  //    Away from the first point the two ways of running out of data are judged differently,
+  //    because the app can only report one of them. A 404 reaches the pane as a "tiles missing"
+  //    badge with the coverageNote in its tooltip, so for a Layer that HAS a coverageNote — a
   //    withdrawal of the claim to uniform reach — it is expected behaviour, not drift. A no-data
   //    200 reaches the pane as nothing at all, so it is a failure over populated ground however
-  //    well documented: an honest ceiling is one the user's city actually has imagery at. Only
-  //    over the remote point, where high-resolution imagery genuinely thins out everywhere, does
-  //    a declared coverageNote excuse it.
+  //    well documented. Only over the remote point does a declared coverageNote excuse it.
   const control = await probe(buildUrl(p, p.maxzoom, CONTROL));
   let at;
-  for (const [i, point] of POINTS.entries()) {
+  for (const [i, point] of points.entries()) {
     const result = await probe(buildUrl(p, p.maxzoom, point));
     at ??= result;
     const declared = i > 0 && Boolean(p.coverageNote);
@@ -237,7 +376,7 @@ for (const p of providers) {
       if (declared) notes.push(`${line}; visibly missing rather than silently blank, as coverageNote says`);
       else errors.push(`${line} — declared ceiling is too HIGH`);
     } else if (isNoData(result, control.hash)) {
-      const line = `z${p.maxzoom} at ${point.name} returns a ${result.bytes}-byte no-data placeholder, identical to this provider's open-ocean tile`;
+      const line = `z${p.maxzoom} at ${point.name} returns a ${result.bytes}-byte no-data placeholder, identical to this Layer's open-ocean tile`;
       if (declared && point.remote) notes.push(`${line}; coverage is thin there, as coverageNote says`);
       else errors.push(`${line} — a 200, so the pane goes blank with nothing to badge it`);
     } else if (result.size && result.size.w !== p.tileSize) {
@@ -247,15 +386,11 @@ for (const p of providers) {
   const dims = at.size ? `${at.size.w}px` : "?";
 
   const aboveControl = await probe(buildUrl(p, p.maxzoom + 1, CONTROL));
-  const above = await probe(buildUrl(p, p.maxzoom + 1, POINTS[0]));
+  const above = await probe(buildUrl(p, p.maxzoom + 1, points[0]));
   if (above.status === 200 && !isNoData(above, aboveControl.hash)) notes.push(`z${p.maxzoom + 1} also serves; confirm whether that is real detail or server upsampling`);
 
-  if (errors.length > 0) problems += 1;
-  const label = errors.length > 0 ? "FAIL" : "ok  ";
-  console.log(`  ${label}  ${p.id.padEnd(30)} z${p.maxzoom} ${dims}`);
-  for (const e of errors) console.log(`        ${e}`);
-  if (errors.length === 0) for (const n of notes) console.log(`        note: ${n}`);
+  report(p, errors, notes, `z${p.maxzoom} ${dims}${freshness ? ` · ${freshness}` : ""}`);
 }
 
-console.log(problems === 0 ? "\nRegistry matches the live services." : `\n${problems} provider(s) drifted from the registry in a way that breaks rendering.`);
+console.log(problems === 0 ? "\nRegistry matches the live services." : `\n${problems} Layer(s) drifted from the registry in a way that breaks rendering or went stale.`);
 process.exit(problems === 0 ? 0 : 1);

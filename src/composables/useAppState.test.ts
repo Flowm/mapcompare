@@ -65,28 +65,42 @@ describe("history restore", () => {
     expect(state.mode.value).toBe("bl");
     expect(state.blinkTopVisible.value).toBe(true);
   });
+
+  it("reads an old Wayback link's release id as the snapshot it names", async () => {
+    state.installHistoryListener();
+    window.history.pushState(null, "", "/?m=g2&v=16.00/52.37300/4.89300&p=esri.wayback:4756,esri.wayback:1234");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await nextTick();
+
+    // A listed id becomes its ISO Time; an unknown number stays as written, for the pane to report
+    // as unreadable rather than as the year 1234.
+    expect(state.panes.value).toStrictEqual([
+      { layerId: "esri.wayback", time: "2019-12-12" },
+      { layerId: "esri.wayback", time: "1234" },
+    ]);
+  });
 });
 
 describe("panes", () => {
   it("restores previous choices when the deck grows back", () => {
     state.setMode("g4");
-    state.setPaneLayer(2, { providerId: "gibs.modis.terra" });
+    state.setPaneLayer(2, { layerId: "gibs.modis.terra" });
     state.setMode("g2");
     expect(state.panes.value).toHaveLength(2);
     state.setMode("g4");
-    expect(state.panes.value[2]).toMatchObject({ providerId: "gibs.modis.terra" });
+    expect(state.panes.value[2]).toMatchObject({ layerId: "gibs.modis.terra" });
   });
 
   it("hands out copies, so a pane change cannot mutate the registry's own objects", () => {
     state.setMode("g2");
-    const layer = { providerId: "esri.imagery", variant: undefined };
+    const layer = { layerId: "esri.imagery", time: undefined };
     state.setPaneLayer(0, layer);
     expect(state.panes.value[0]).not.toBe(layer);
   });
 
   it("ignores an out-of-range pane index rather than growing the deck", () => {
     state.setMode("g2");
-    state.setPaneLayer(7, { providerId: "esri.imagery" });
+    state.setPaneLayer(7, { layerId: "esri.imagery" });
     expect(state.panes.value).toHaveLength(2);
   });
 });
@@ -94,13 +108,13 @@ describe("panes", () => {
 describe("goTo", () => {
   it("moves the camera and leaves the layers alone", () => {
     state.setMode("g2");
-    state.setPaneLayer(0, { providerId: "gibs.modis.terra" });
-    const before = state.panes.value.map((p) => p.providerId);
+    state.setPaneLayer(0, { layerId: "gibs.modis.terra" });
+    const before = state.panes.value.map((p) => p.layerId);
 
     state.goTo({ label: "Somewhere", center: [2.5, 1.5], zoom: 9 });
 
     expect(state.camera.value).toMatchObject({ center: [2.5, 1.5], zoom: 9, bearing: 0, pitch: 0, roll: 0 });
-    expect(state.panes.value.map((p) => p.providerId)).toEqual(before);
+    expect(state.panes.value.map((p) => p.layerId)).toEqual(before);
   });
 
   it("clamps a destination the camera owner would reject", () => {

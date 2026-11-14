@@ -2,15 +2,14 @@
 import { onClickOutside, useEventListener, useWindowSize } from "@vueuse/core";
 import { computed, nextTick, ref, watch } from "vue";
 
+import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
-import { useClock } from "@/composables/useClock";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { type Anchor, placePanel } from "@/lib/anchor";
-import { groupByOperator, providerStatuses } from "@/lib/providers/availability";
-import { licenceInfo } from "@/lib/providers/licence";
-import { PROVIDERS } from "@/lib/providers/registry";
-import type { PaneLayer, Provider } from "@/lib/providers/types";
-import { resolveVariant, variantValues } from "@/lib/providers/variants";
+import { groupLayers, layerStatuses, providerLabel } from "@/lib/layers/availability";
+import { licenceInfo } from "@/lib/layers/licence";
+import { getLayer, LAYERS } from "@/lib/layers/registry";
+import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
@@ -33,8 +32,7 @@ const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "r
 const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
 const { keys } = useApiKeys();
-const { now } = useClock();
-const { activePane, openPanel, focusPane } = useLayerPanel();
+const { activePane, groupBy, openPanel, focusPane } = useLayerPanel();
 
 const PANEL = { width: 260, maxHeight: 340 };
 
@@ -47,19 +45,17 @@ const search = ref<HTMLInputElement>();
 const { width: viewportWidth, height: viewportHeight } = useWindowSize();
 const anchor = ref<Anchor>({ top: 0, left: 0, right: 0, bottom: 0 });
 
-const statuses = computed(() => providerStatuses(PROVIDERS, keys.value));
+const statuses = computed(() => layerStatuses(LAYERS, keys.value));
 const available = computed(() => statuses.value.filter((s) => s.enabled));
 const gatedCount = computed(() => statuses.value.length - available.value.length);
 
 const groups = computed(() => {
   const term = query.value.trim().toLowerCase();
-  const matching = term === "" ? available.value : available.value.filter((s) => `${s.provider.label} ${s.provider.operator}`.toLowerCase().includes(term));
-  return groupByOperator(matching);
+  const matching = term === "" ? available.value : available.value.filter((s) => `${s.layer.label} ${providerLabel(s.layer)}`.toLowerCase().includes(term));
+  return groupLayers(matching, groupBy.value);
 });
 
-const current = computed(() => PROVIDERS.find((p) => p.id === props.layer.providerId));
-const variants = computed(() => (current.value?.variant ? variantValues(current.value.variant) : []));
-const selectedVariant = computed(() => (current.value?.variant ? resolveVariant(current.value.variant, props.layer.variant, now.value) : ""));
+const current = computed(() => getLayer(props.layer.layerId));
 
 const placement = computed(() => {
   const { left, top, bottom, maxHeight } = placePanel(anchor.value, PANEL, { width: viewportWidth.value, height: viewportHeight.value }, props.align ?? "left");
@@ -98,14 +94,14 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
 });
 onClickOutside(panel, () => (open.value = false), { ignore: [trigger] });
 
-function choose(provider: Provider) {
-  // The old variant belonged to the old provider and would be meaningless here.
-  emit("update", { providerId: provider.id });
+function choose(layer: Layer) {
+  // The old Time belonged to the old Layer: a year of EOX means nothing to GOES.
+  emit("update", { layerId: layer.id });
   open.value = false;
 }
 
-function pickVariant(event: Event) {
-  emit("update", { providerId: props.layer.providerId, variant: (event.target as HTMLSelectElement).value });
+function pickTime(time: string | undefined) {
+  emit("update", paneLayer(props.layer.layerId, time));
 }
 
 function showEverything() {
@@ -115,7 +111,7 @@ function showEverything() {
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5">
+  <div class="flex flex-wrap items-center gap-1.5" :class="align === 'right' ? 'justify-end' : 'justify-start'">
     <button
       ref="trigger"
       type="button"
@@ -132,19 +128,11 @@ function showEverything() {
         :class="SEVERITY_CLASSES[licenceInfo(current.licence.tier).severity].dot"
         :title="licenceInfo(current.licence.tier).label"
       />
-      <span class="truncate">{{ current?.label ?? layer.providerId }}</span>
+      <span class="truncate">{{ current?.label ?? layer.layerId }}</span>
       <span class="text-ink-400 shrink-0">▾</span>
     </button>
 
-    <select
-      v-if="variants.length > 0"
-      :value="selectedVariant"
-      :aria-label="current?.variant?.label"
-      class="border-ink-600/70 bg-ink-950/85 text-ink-50 focus:border-accent rounded border px-1.5 py-1 font-mono text-xs backdrop-blur focus:outline-none"
-      @change="pickVariant"
-    >
-      <option v-for="value in variants" :key="value.value" :value="value.value">{{ value.label }}</option>
-    </select>
+    <TimeControl v-if="current?.time" :layer="current" :time="layer.time" @update="pickTime" />
 
     <Teleport to="body">
       <div
@@ -166,21 +154,21 @@ function showEverything() {
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <div v-for="group in groups" :key="group.operator">
-            <p class="bg-ink-800/95 text-ink-400 sticky top-0 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.operator }}</p>
+          <div v-for="group in groups" :key="group.key">
+            <p class="bg-ink-800/95 text-ink-400 sticky top-0 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.label }}</p>
 
             <button
               v-for="entry in group.entries"
-              :key="entry.provider.id"
+              :key="entry.layer.id"
               type="button"
               class="hover:bg-ink-800 flex w-full items-center gap-2 px-2.5 py-1 text-left"
-              :class="entry.provider.id === layer.providerId ? 'bg-accent/10' : ''"
+              :class="entry.layer.id === layer.layerId ? 'bg-accent/10' : ''"
               role="option"
-              :aria-selected="entry.provider.id === layer.providerId"
-              @click="choose(entry.provider)"
+              :aria-selected="entry.layer.id === layer.layerId"
+              @click="choose(entry.layer)"
             >
-              <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].dot" />
-              <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.provider.label }}</span>
+              <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot" />
+              <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
             </button>
           </div>
 

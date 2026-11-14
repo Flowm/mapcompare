@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_PANE_LAYERS, getProvider, LABEL_OVERLAY_PROVIDER_ID, labelOverlayStyleUrl, PROVIDER_IDS, PROVIDERS } from "./registry";
+import { PROVIDERS } from "./providers";
+import { DEFAULT_PANE_LAYERS, getLayer, LABEL_OVERLAY_LAYER_ID, labelOverlayStyleUrl, LAYER_IDS, LAYERS } from "./registry";
+import { parseTime } from "./time";
 import { API_KEY_NAMES } from "./types";
 
 /**
@@ -14,53 +16,61 @@ import { API_KEY_NAMES } from "./types";
 
 describe("registry invariants", () => {
   it("has unique ids", () => {
-    const ids = PROVIDERS.map((p) => p.id);
+    const ids = LAYERS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("has URL-safe ids, since they appear verbatim in shared links", () => {
-    for (const p of PROVIDERS) {
+    for (const p of LAYERS) {
       expect(p.id, p.id).toMatch(/^[a-z0-9]+(?:[._][a-z0-9]+)*$/);
-      // ":" separates id from variant and "," separates panes in the `p` URL parameter.
+      // ":" separates id from Time and "," separates panes in the `p` URL parameter.
       expect(p.id).not.toContain(":");
       expect(p.id).not.toContain(",");
     }
   });
 
-  it("gives every provider an attribution, since it is the legal notice", () => {
-    for (const p of PROVIDERS) expect(p.attribution.trim(), p.id).not.toBe("");
+  it("gives every Layer an attribution, since it is the legal notice", () => {
+    for (const p of LAYERS) expect(p.attribution.trim(), p.id).not.toBe("");
   });
 
-  it("gives every provider a licence with a note", () => {
-    for (const p of PROVIDERS) {
+  it("gives every Layer a licence with a note", () => {
+    for (const p of LAYERS) {
       expect(p.licence.note.trim(), p.id).not.toBe("");
       expect(p.licence.tier, p.id).toBeDefined();
     }
   });
 
-  it("gives every provider a note for the picker", () => {
-    for (const p of PROVIDERS) expect(p.note.trim(), p.id).not.toBe("");
+  it("gives every Layer a note for the picker", () => {
+    for (const p of LAYERS) expect(p.note.trim(), p.id).not.toBe("");
   });
 
   it("only references declared API key names", () => {
-    for (const p of PROVIDERS) {
+    for (const p of LAYERS) {
       if (p.requiresKey) expect(API_KEY_NAMES, p.id).toContain(p.requiresKey);
     }
   });
 
   it("pairs every key requirement with a signup URL", () => {
-    for (const p of PROVIDERS) {
+    for (const p of LAYERS) {
       if (p.requiresKey) expect(p.keyUrl, p.id).toBeTruthy();
     }
   });
 
   it("keeps minzoom below maxzoom", () => {
-    for (const p of PROVIDERS) expect(p.maxzoom, p.id).toBeGreaterThan(p.minzoom);
+    for (const p of LAYERS) expect(p.maxzoom, p.id).toBeGreaterThan(p.minzoom);
+  });
+
+  it("names a declared Provider for every Layer", () => {
+    for (const p of LAYERS) expect(PROVIDERS[p.provider], p.id).toBeDefined();
+  });
+
+  it("gives an Orbit to exactly the satellite Layers", () => {
+    for (const p of LAYERS) expect(p.orbit !== undefined, p.id).toBe(p.category === "satellite");
   });
 });
 
 describe("required wordmarks", () => {
-  const withWordmark = PROVIDERS.filter((p) => p.wordmark);
+  const withWordmark = LAYERS.filter((p) => p.wordmark);
 
   it("belongs to exactly the two vendors whose terms demand a logo", () => {
     // Pinned rather than counted: adding one where it is not required puts another vendor's
@@ -81,8 +91,8 @@ describe("required wordmarks", () => {
 
   it("links each mark to the destination its vendor names, over https", () => {
     for (const p of withWordmark) expect(p.wordmark!.href, p.id).toMatch(/^https:\/\//);
-    expect(getProvider("mapbox.satellite")?.wordmark?.href).toBe("https://www.mapbox.com/");
-    expect(getProvider("maptiler.satellite")?.wordmark?.href).toBe("https://www.maptiler.com/");
+    expect(getLayer("mapbox.satellite")?.wordmark?.href).toBe("https://www.mapbox.com/");
+    expect(getLayer("maptiler.satellite")?.wordmark?.href).toBe("https://www.maptiler.com/");
   });
 
   it("declares the artwork's own size, and never below Mapbox's documented floor", () => {
@@ -98,7 +108,7 @@ describe("required wordmarks", () => {
 
 describe("credits with wording the vendor dictates", () => {
   it("carries all three links Mapbox's attribution snippet requires", () => {
-    const attribution = getProvider("mapbox.satellite")!.attribution;
+    const attribution = getLayer("mapbox.satellite")!.attribution;
     // The feedback link is as mandatory as the copyright lines, and is the one easily forgotten.
     expect(attribution).toContain("https://apps.mapbox.com/feedback/");
     expect(attribution).toContain("Improve this map");
@@ -109,17 +119,17 @@ describe("credits with wording the vendor dictates", () => {
   it("credits MapTiler in its own descriptor, which is the only place that credit can come from", () => {
     // MapTiler's style.json declares TileJSON `url` sources, so nothing in the fetched document
     // reaches the attribution control. Without this string the pane shows no credit whatsoever.
-    const attribution = getProvider("maptiler.satellite")!.attribution;
+    const attribution = getLayer("maptiler.satellite")!.attribution;
     expect(attribution).toContain("maptiler.com/copyright");
     expect(attribution).toContain("openstreetmap.org/copyright");
   });
 });
 
-describe("raster providers", () => {
-  const rasters = PROVIDERS.filter((p) => p.kind === "raster");
+describe("tiled Layers", () => {
+  const tiled = LAYERS.flatMap((p) => (p.kind === "xyz" || p.kind === "wmts" ? [p] : []));
 
   it("has every tile placeholder in every template", () => {
-    for (const p of rasters) {
+    for (const p of tiled) {
       for (const t of p.tiles) {
         expect(t, p.id).toContain("{z}");
         expect(t, p.id).toContain("{x}");
@@ -129,7 +139,7 @@ describe("raster providers", () => {
   });
 
   it("uses absolute https templates", () => {
-    for (const p of rasters) {
+    for (const p of tiled) {
       for (const t of p.tiles) expect(t, p.id).toMatch(/^https:\/\//);
     }
   });
@@ -137,131 +147,137 @@ describe("raster providers", () => {
   it("declares 512 px tiles for exactly the retina and webp sources", () => {
     // Verified by reading pixel dimensions out of real tiles. A wrong value here renders
     // plausible imagery a whole zoom level off, so it is pinned rather than trusted.
-    const large = rasters.filter((p) => p.tileSize === 512).map((p) => p.id);
+    const large = tiled.filter((p) => p.tileSize === 512).map((p) => p.id);
     expect(large.toSorted()).toEqual(["here.satellite", "mapbox.satellite", "stadia.alidade_satellite", "versatiles.satellite"]);
   });
 
-  it("puts {KEY} in the template of every keyed raster provider, and nowhere else", () => {
-    for (const p of rasters) {
+  it("puts {KEY} in the template of every keyed tiled Layer, and nowhere else", () => {
+    for (const p of tiled) {
       const hasPlaceholder = p.tiles.some((t) => t.includes("{KEY}"));
       expect(hasPlaceholder, p.id).toBe(Boolean(p.requiresKey));
     }
   });
 
-  it("puts the variant token in the template of every parameterised provider", () => {
-    for (const p of rasters) {
-      if (!p.variant) continue;
+  it("puts {TIME} in the template of exactly the time-aware Layers", () => {
+    for (const p of tiled)
       expect(
-        p.tiles.some((t) => t.includes(p.variant!.token)),
+        p.tiles.every((t) => t.includes("{TIME}")),
         p.id,
-      ).toBe(true);
-    }
+      ).toBe(Boolean(p.time));
   });
 });
 
-describe("style providers", () => {
-  const styles = PROVIDERS.filter((p) => p.kind === "style");
+describe("style Layers", () => {
+  const styles = LAYERS.flatMap((p) => (p.kind === "style" ? [p] : []));
 
   it("uses absolute https style URLs", () => {
     for (const p of styles) expect(p.styleUrl, p.id).toMatch(/^https:\/\//);
   });
 
-  it("puts {KEY} in the style URL of every keyed style provider, and nowhere else", () => {
+  it("puts {KEY} in the style URL of every keyed style Layer, and nowhere else", () => {
     for (const p of styles) {
       expect(p.styleUrl.includes("{KEY}"), p.id).toBe(Boolean(p.requiresKey));
     }
   });
 });
 
-describe("variant specs", () => {
-  it("gives fixed-list variants at least two values, since one value is not a choice", () => {
-    for (const p of PROVIDERS) {
-      if (!p.variant || p.variant.kind === "date") continue;
-      expect(p.variant.values?.length ?? 0, p.id).toBeGreaterThan(1);
+describe("time specs", () => {
+  const timed = LAYERS.flatMap((p) => (p.time ? [{ id: p.id, kind: p.kind, spec: p.time }] : []));
+
+  it("declares exactly one of a list and a series", () => {
+    for (const { id, spec } of timed) expect(Boolean(spec.values) !== Boolean(spec.series), id).toBe(true);
+  });
+
+  it("gives a list at least two Times, since one is not a choice", () => {
+    for (const { id, spec } of timed) if (spec.values) expect(spec.values.length, id).toBeGreaterThan(1);
+  });
+
+  it("writes every listed Time at its precision and keeps them in order, because 'latest' is the last", () => {
+    const shapes = { year: /^\d{4}$/, day: /^\d{4}-\d{2}-\d{2}$/, minute: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/ };
+    for (const { id, spec } of timed) {
+      if (!spec.values) continue;
+      const times = spec.values.map((v) => v.time);
+      for (const t of times) {
+        expect(t, id).toMatch(shapes[spec.precision]);
+        expect(parseTime(t), `${id} ${t}`).toBeDefined();
+      }
+      expect(times, id).toStrictEqual(times.toSorted());
     }
   });
 
-  it("keeps fixed-list values in chronological order, because 'latest' takes the last", () => {
-    for (const p of PROVIDERS) {
-      const values = p.variant?.values;
-      if (!values) continue;
-      const labels = values.map((v) => v.label);
-      expect(labels, p.id).toStrictEqual(labels.toSorted());
+  it("bounds every series by a readable start or a retention window", () => {
+    for (const { id, spec } of timed) {
+      if (!spec.series) continue;
+      expect(spec.series.stepMinutes, id).toBeGreaterThan(0);
+      if (spec.series.earliest !== undefined) expect(parseTime(spec.series.earliest), id).toBeDefined();
+      else expect(spec.series.retentionDays, id).toBeGreaterThan(0);
     }
   });
 
-  it("gives date variants an earliest bound", () => {
-    for (const p of PROVIDERS) {
-      if (p.variant?.kind !== "date") continue;
-      expect(p.variant.earliest, p.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    }
+  it("gives every discovering Layer a series, which is where its Cadence comes from", () => {
+    for (const { id, kind, spec } of timed) if (kind === "wmts" || kind === "wms" || kind === "stac") expect(spec.series, id).toBeDefined();
   });
 
-  it("resolves a non-'latest' default to one of the declared values", () => {
-    for (const p of PROVIDERS) {
-      const spec = p.variant;
-      if (!spec || spec.default === "latest" || spec.kind === "date") continue;
-      expect(
-        spec.values?.map((v) => v.value),
-        p.id,
-      ).toContain(spec.default);
-    }
+  it("keeps Wayback's release ids unique, since an old link names one", () => {
+    const params = getLayer("esri.wayback")!.time!.values!.map((v) => v.param);
+    expect(new Set(params).size).toBe(params.length);
+    expect(params.every((p) => p !== undefined && /^\d+$/.test(p))).toBe(true);
   });
 });
 
 describe("lookups", () => {
-  it("PROVIDER_IDS matches PROVIDERS", () => {
-    expect(PROVIDER_IDS.size).toBe(PROVIDERS.length);
-    for (const p of PROVIDERS) expect(PROVIDER_IDS.has(p.id)).toBe(true);
+  it("LAYER_IDS matches LAYERS", () => {
+    expect(LAYER_IDS.size).toBe(LAYERS.length);
+    for (const p of LAYERS) expect(LAYER_IDS.has(p.id)).toBe(true);
   });
 
-  it("getProvider finds by id and returns undefined otherwise", () => {
-    expect(getProvider("esri.imagery")?.label).toBe("Esri World Imagery");
-    expect(getProvider("nope.nope")).toBeUndefined();
+  it("getLayer finds by id and returns undefined otherwise", () => {
+    expect(getLayer("esri.imagery")?.label).toBe("Esri World Imagery");
+    expect(getLayer("nope.nope")).toBeUndefined();
   });
 });
 
 describe("default pane layers", () => {
-  it("names four real providers, so growing to 4 panes never needs a fallback", () => {
+  it("names four real Layers, so growing to 4 panes never needs a fallback", () => {
     expect(DEFAULT_PANE_LAYERS).toHaveLength(4);
     for (const layer of DEFAULT_PANE_LAYERS) {
-      expect(getProvider(layer.providerId), layer.providerId).toBeDefined();
+      expect(getLayer(layer.layerId), layer.layerId).toBeDefined();
     }
   });
 
-  it("uses keyless providers for the first two panes", () => {
+  it("uses keyless Layers for the first two panes", () => {
     // A fresh clone with no .env must render a real comparison on first paint.
     for (const layer of DEFAULT_PANE_LAYERS.slice(0, 2)) {
-      expect(getProvider(layer.providerId)?.requiresKey, layer.providerId).toBeUndefined();
+      expect(getLayer(layer.layerId)?.requiresKey, layer.layerId).toBeUndefined();
     }
   });
 
   it("covers the default zoom of 16 with both opening panes", () => {
     // Amsterdam z16 must sit inside both measured ceilings or the app opens on a blurry pane.
     for (const layer of DEFAULT_PANE_LAYERS.slice(0, 2)) {
-      expect(getProvider(layer.providerId)!.maxzoom, layer.providerId).toBeGreaterThanOrEqual(16);
+      expect(getLayer(layer.layerId)!.maxzoom, layer.layerId).toBeGreaterThanOrEqual(16);
     }
   });
 });
 
 describe("the label overlay source", () => {
-  it("exists as a style provider, which is what api/styles.ts derives its URL from", () => {
-    const provider = getProvider(LABEL_OVERLAY_PROVIDER_ID);
-    expect(provider, LABEL_OVERLAY_PROVIDER_ID).toBeDefined();
-    expect(provider?.kind).toBe("style");
-    expect(labelOverlayStyleUrl()).toBe(provider?.kind === "style" ? provider.styleUrl : undefined);
+  it("exists as a style Layer, which is what api/styles.ts derives its URL from", () => {
+    const layer = getLayer(LABEL_OVERLAY_LAYER_ID);
+    expect(layer, LABEL_OVERLAY_LAYER_ID).toBeDefined();
+    expect(layer?.kind).toBe("style");
+    expect(labelOverlayStyleUrl()).toBe(layer?.kind === "style" ? layer.styleUrl : undefined);
   });
 
-  it("is reachable as a basemap in its own right, so the two share one cached fetch", () => {
+  it("is reachable as a Layer in its own right, so the two share one cached fetch", () => {
     // If this entry were ever removed but the overlay kept, turning labels on would fetch a
     // document no pane can show, and the suppression that stops double labels would never match.
-    expect(PROVIDER_IDS.has(LABEL_OVERLAY_PROVIDER_ID)).toBe(true);
+    expect(LAYER_IDS.has(LABEL_OVERLAY_LAYER_ID)).toBe(true);
   });
 });
 
 describe("API_KEY_NAMES", () => {
-  it("lists every key the providers actually require", () => {
-    const required = new Set(PROVIDERS.flatMap((p) => (p.requiresKey ? [p.requiresKey] : [])));
+  it("lists every key the Layers actually require", () => {
+    const required = new Set(LAYERS.flatMap((p) => (p.requiresKey ? [p.requiresKey] : [])));
     for (const name of required) expect(API_KEY_NAMES, name).toContain(name);
   });
 

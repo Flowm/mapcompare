@@ -29,7 +29,7 @@
 
   --color-accent: #38bdf8;
 
-  /* Licence tiers — see lib/providers/types.ts LicenceTier */
+  /* Licence tiers — see lib/layers/types.ts LicenceTier */
   --color-tier-open: #34d399;
   --color-tier-licensed: #34d399;
   --color-tier-terms: #fbbf24;

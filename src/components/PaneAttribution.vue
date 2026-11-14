@@ -13,7 +13,7 @@ const props = defineProps<{
 
 /**
  * Sanitized here, at the last possible moment, because this is the only place the strings meet
- * `v-html`. For style-URL providers they arrive from a fetched third-party document.
+ * `v-html`. For style Layers they arrive from a fetched third-party document.
  */
 const parts = computed(() => (props.credit?.parts ?? []).map(sanitizeAttributionHtml));
 

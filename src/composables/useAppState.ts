@@ -2,9 +2,10 @@ import { useDebounceFn } from "@vueuse/core";
 import { computed, nextTick, ref, watch } from "vue";
 
 import type { Destination } from "@/lib/destination";
+import { DEFAULT_PANE_LAYERS, getLayer, LAYER_IDS } from "@/lib/layers/registry";
+import { upgradeLegacyTime } from "@/lib/layers/time";
+import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { type Mode, paneCountFor } from "@/lib/mode";
-import { DEFAULT_PANE_LAYERS, PROVIDER_IDS } from "@/lib/providers/registry";
-import type { PaneLayer } from "@/lib/providers/types";
 import { type AppStateSnapshot, decodeState, encodeState } from "@/lib/urlState";
 
 import { DEFAULT_CAMERA, moveCamera, useCamera } from "./useCamera";
@@ -26,7 +27,16 @@ const { camera } = useCamera();
  * the catalogue.
  */
 function clonePaneLayer(layer: PaneLayer): PaneLayer {
-  return { providerId: layer.providerId, variant: layer.variant };
+  return paneLayer(layer.layerId, layer.time);
+}
+
+/**
+ * Reads a link as this build understands it: an old Wayback release id becomes the snapshot's
+ * ISO Time, so nothing past this point has to know ids were ever in URLs.
+ */
+function readUrl(search: string): AppStateSnapshot {
+  const decoded = decodeState(search, LAYER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
+  return { ...decoded, panes: decoded.panes.map((p) => paneLayer(p.layerId, upgradeLegacyTime(getLayer(p.layerId)?.time, p.time))) };
 }
 
 const FALLBACK: AppStateSnapshot = {
@@ -37,7 +47,7 @@ const FALLBACK: AppStateSnapshot = {
   labels: false,
 };
 
-const initial = decodeState(typeof window === "undefined" ? "" : window.location.search, PROVIDER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
+const initial = readUrl(typeof window === "undefined" ? "" : window.location.search);
 
 const mode = ref<Mode>(initial.mode);
 const panes = ref<PaneLayer[]>(initial.panes.map(clonePaneLayer));
@@ -86,6 +96,13 @@ const writeUrlDebounced = useDebounceFn(writeUrl, 300);
 
 watch(camera, writeUrlDebounced);
 watch([mode, panes, swipe, labels], writeUrl, { deep: true });
+
+// A link that arrived with a legacy Time is rewritten at once, so copying it from the address
+// bar shares the upgraded form.
+if (typeof window !== "undefined") {
+  const asWritten = decodeState(window.location.search, LAYER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
+  if (asWritten.panes.some((p, i) => p.time !== initial.panes[i]?.time)) writeUrl();
+}
 
 /**
  * Applies a mode, and the invariants that come with it.
@@ -146,7 +163,7 @@ function applySnapshot(next: AppStateSnapshot): void {
  * synchronously: the watchers are pre-flush, so they run in a microtask, and a `finally` that
  * cleared the flag on the way out of this handler released it before it had suppressed anything.
  * The result was that every Back/Forward silently rewrote its own history entry — dropping any
- * query parameter the app does not own, and replacing an unrecognised provider id with a default.
+ * query parameter the app does not own, and replacing an unrecognised Layer id with a default.
  */
 function installHistoryListener(): void {
   if (typeof window === "undefined") return;
@@ -155,7 +172,7 @@ function installHistoryListener(): void {
   window.addEventListener("popstate", () => {
     restoring = true;
     try {
-      applySnapshot(decodeState(window.location.search, PROVIDER_IDS, DEFAULT_PANE_LAYERS, FALLBACK));
+      applySnapshot(readUrl(window.location.search));
     } finally {
       void nextTick().then(() => (restoring = false));
     }

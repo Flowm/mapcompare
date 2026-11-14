@@ -1,4 +1,4 @@
-import type { PaneLayer } from "@/lib/providers/types";
+import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 
 import { clampCamera, type CameraState, ZOOM_LIMITS } from "./camera";
 import { isMode, type Mode, paneCountFor } from "./mode";
@@ -15,7 +15,8 @@ import { clampSwipe } from "./swipe";
  *
  *   m   mode        g1|g2|g3|g4|sw|bl
  *   v   viewport    zoom/lat/lon[/bearing[/pitch]]
- *   p   panes       comma-separated providerId[:variant], in pane order
+ *   p   panes       comma-separated layerId[:time], in pane order. A Time is ISO
+ *               (`2024`, `2025-12-18`, `2026-11-13T19:00Z`); only the first colon separates it
  *   sw  divider     0..1, only in swipe mode and only when not centred
  *   l   labels      1, only when the label overlay is on
  *
@@ -52,7 +53,7 @@ export function canonicalise(state: AppStateSnapshot, defaults: readonly PaneLay
   for (let i = 0; i < wanted; i += 1) {
     const source = state.panes[i] ?? defaults[i % Math.max(1, defaults.length)];
     if (!source) continue;
-    panes.push(source.variant === undefined ? { providerId: source.providerId } : { providerId: source.providerId, variant: source.variant });
+    panes.push(paneLayer(source.layerId, source.time));
   }
 
   return {
@@ -86,7 +87,7 @@ export function encodeState(state: AppStateSnapshot, defaults: readonly PaneLaye
   if (s.camera.pitch !== 0) v.push(s.camera.pitch.toFixed(PRECISION.angle));
   params.push(`v=${v.join("/")}`);
 
-  params.push(`p=${s.panes.map((p) => (p.variant === undefined ? p.providerId : `${p.providerId}:${p.variant}`)).join(",")}`);
+  params.push(`p=${s.panes.map((p) => (p.time === undefined ? p.layerId : `${p.layerId}:${p.time}`)).join(",")}`);
 
   if (s.mode === "sw" && s.swipe !== 0.5) params.push(`sw=${s.swipe.toFixed(3)}`);
   if (s.labels) params.push("l=1");
@@ -126,12 +127,12 @@ function parsePane(token: string, knownIds: ReadonlySet<string>): PaneLayer | un
   const trimmed = token.trim();
   if (trimmed === "") return undefined;
   const colon = trimmed.indexOf(":");
-  const providerId = colon === -1 ? trimmed : trimmed.slice(0, colon);
-  if (!knownIds.has(providerId)) return undefined;
-  const variant = colon === -1 ? undefined : trimmed.slice(colon + 1);
-  // The variant is NOT validated here: only the provider knows its own vintages, and
-  // resolveVariant clamps or falls back at render time.
-  return variant === undefined || variant === "" ? { providerId } : { providerId, variant };
+  const layerId = colon === -1 ? trimmed : trimmed.slice(0, colon);
+  if (!knownIds.has(layerId)) return undefined;
+  const time = colon === -1 ? undefined : trimmed.slice(colon + 1);
+  // The Time is NOT validated here: only the Layer knows which Times it has, and resolveTime
+  // substitutes the nearest one at render time, saying so on the pane.
+  return time === undefined || time === "" ? { layerId } : { layerId, time };
 }
 
 function parseViewport(raw: string | null): CameraState | undefined {

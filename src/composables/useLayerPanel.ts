@@ -1,6 +1,8 @@
 import { useLocalStorage } from "@vueuse/core";
 import { computed, ref } from "vue";
 
+import type { GroupBy } from "@/lib/layers/availability";
+
 /**
  * The layer manager's own state: whether it is showing, and which pane it acts on.
  *
@@ -17,11 +19,15 @@ import { computed, ref } from "vue";
 /** Persisted: closing the manager to reclaim the width should survive a reload. */
 const panelOpen = useLocalStorage("mapcompare:layer-panel", true);
 
+/** How the catalogue is grouped, in the manager and every picker alike. A viewing preference. */
+const groupBy = useLocalStorage<GroupBy>("mapcompare:group-by", "provider");
+
 const activePane = ref(0);
 
 export function useLayerPanel() {
   return {
     panelOpen,
+    groupBy,
     activePane: computed(() => activePane.value),
 
     togglePanel() {

@@ -13,7 +13,7 @@ import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
-import type { ApiKeyName } from "@/lib/providers/types";
+import type { ApiKeyName } from "@/lib/layers/types";
 
 const { camera, installHistoryListener } = useAppState();
 const { panelOpen, togglePanel } = useLayerPanel();

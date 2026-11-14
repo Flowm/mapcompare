@@ -69,8 +69,9 @@ have one.
 
 ## Cadence
 
-How often a Layer offers a new picture: static, vintages, daily, or sub-daily. Follows from the
-Layer's Times, never stated separately.
+How often a Layer offers a new picture: sub-daily, daily, monthly, yearly, or static. Follows
+from how far apart the Layer's Times are, never stated separately: EOX's annual composites and
+Wayback's kept snapshots are both yearly.
 
 ## Ended
 

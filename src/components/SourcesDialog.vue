@@ -4,8 +4,10 @@ import { ref, watch } from "vue";
 import { useDialogDismiss } from "@/composables/useDialogDismiss";
 import { BUILD_DATE, BUILD_SHA } from "@/env";
 import { sanitizeAttributionHtml } from "@/lib/attribution";
-import { licenceInfo, LICENCE_TIERS } from "@/lib/providers/licence";
-import { PROVIDERS } from "@/lib/providers/registry";
+import { providerLabel } from "@/lib/layers/availability";
+import { describeAttribution } from "@/lib/layers/buildStyle";
+import { licenceInfo, LICENCE_TIERS } from "@/lib/layers/licence";
+import { LAYERS } from "@/lib/layers/registry";
 import { SEVERITY_CLASSES } from "@/lib/severity";
 
 const open = defineModel<boolean>("open", { required: true });
@@ -50,30 +52,30 @@ function coverage(maxzoom: number, note: string | undefined): string {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="provider in PROVIDERS" :key="provider.id" class="border-ink-800/60 border-b align-top">
+            <tr v-for="layer in LAYERS" :key="layer.id" class="border-ink-800/60 border-b align-top">
               <td class="py-2 pr-3">
-                <span class="text-ink-50 font-medium">{{ provider.label }}</span>
-                <span class="text-ink-600 block">{{ provider.operator }}</span>
+                <span class="text-ink-50 font-medium">{{ layer.label }}</span>
+                <span class="text-ink-600 block">{{ providerLabel(layer) }}</span>
               </td>
-              <td class="text-ink-400 py-2 pr-3">{{ coverage(provider.maxzoom, provider.coverageNote) }}</td>
+              <td class="text-ink-400 py-2 pr-3">{{ coverage(layer.maxzoom, layer.coverageNote) }}</td>
               <!-- Measured, not documented. Several providers advertise more than they serve. -->
-              <td class="text-ink-400 py-2 pr-3 font-mono">z{{ provider.maxzoom }}</td>
+              <td class="text-ink-400 py-2 pr-3 font-mono">z{{ layer.maxzoom }}</td>
               <td class="py-2 pr-3">
                 <a
-                  v-if="provider.licence.url"
-                  :href="provider.licence.url"
+                  v-if="layer.licence.url"
+                  :href="layer.licence.url"
                   target="_blank"
                   rel="noreferrer noopener"
                   class="hover:underline"
-                  :class="SEVERITY_CLASSES[licenceInfo(provider.licence.tier).severity].text"
+                  :class="SEVERITY_CLASSES[licenceInfo(layer.licence.tier).severity].text"
                 >
-                  {{ licenceInfo(provider.licence.tier).label }} ↗
+                  {{ licenceInfo(layer.licence.tier).label }} ↗
                 </a>
-                <span v-else :class="SEVERITY_CLASSES[licenceInfo(provider.licence.tier).severity].text">{{ licenceInfo(provider.licence.tier).label }}</span>
-                <span class="text-ink-600 mt-0.5 block leading-snug">{{ provider.licence.note }}</span>
+                <span v-else :class="SEVERITY_CLASSES[licenceInfo(layer.licence.tier).severity].text">{{ licenceInfo(layer.licence.tier).label }}</span>
+                <span class="text-ink-600 mt-0.5 block leading-snug">{{ layer.licence.note }}</span>
               </td>
               <!-- eslint-disable-next-line vue/no-v-html -- sanitized; links must stay clickable -->
-              <td class="credit text-ink-400 py-2 leading-snug" v-html="sanitizeAttributionHtml(provider.attribution)" />
+              <td class="credit text-ink-400 py-2 leading-snug" v-html="sanitizeAttributionHtml(describeAttribution(layer))" />
             </tr>
           </tbody>
         </table>

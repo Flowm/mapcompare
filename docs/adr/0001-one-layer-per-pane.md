@@ -14,5 +14,7 @@ each other, not compositions.
   PACE SPEXone, Metop's stacked orbits) and daylight-only RGBs (SEVIRI natural colour, FCI true
   colour). A blank Pane reads as a broken app, and MapLibre does not surface the 404s that would
   let the tile-error badge explain it. Where a Provider offers a day-and-night product for the
-  same sensor (Meteosat-12 GeoColour), that is the one we take.
+  same sensor (Meteosat-12 GeoColour), that is the one we take. The one daylight-only exception
+  is EUMETSAT's geostationary ring natural colour: no day-and-night product covers the whole
+  Earth every three hours back to 2021, so its dark half is the price of that archive.
 - An underlay can still be added later without breaking links; a stack cannot.

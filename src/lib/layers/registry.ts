@@ -1,8 +1,8 @@
-import type { PaneLayer, Provider, Wordmark } from "./types";
-import { WAYBACK_LATEST, WAYBACK_RELEASES } from "./waybackReleases";
+import type { Layer, PaneLayer, Wordmark } from "./types";
+import { WAYBACK_RELEASES } from "./waybackReleases";
 
 /**
- * The basemap catalogue.
+ * The Layer catalogue: every Layer from every Provider, in one list.
  *
  * Every `maxzoom` here was established by requesting real tiles at SEVERAL points on different
  * continents and walking the zoom up — NOT by reading documentation. Documented ceilings lie:
@@ -80,6 +80,26 @@ const PUBLIC_DOMAIN = {
   url: "https://www.earthdata.nasa.gov/engage/open-data-services-software-policies",
 } as const;
 
+const GIBS_CAPABILITIES = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml";
+const DAILY = 24 * 60;
+
+/** NOAA STAR's credit for GeoColor, with CIRA named as a courtesy: the algorithm is theirs. */
+const GOES =
+  'GeoColor: <a href="https://www.star.nesdis.noaa.gov/">NOAA/NESDIS/STAR</a>, CSU/CIRA. Imagery via <a href="https://worldview.earthdata.nasa.gov/">NASA EOSDIS GIBS</a>';
+
+const NOAA_OPEN = {
+  tier: "open",
+  note: "US government imagery. NOAA STAR lets you use it as you wish, as long as they are credited.",
+  url: "https://www.star.nesdis.noaa.gov/star/productdisclaimer.php",
+} as const;
+
+/** EUMETView's RGBs are "Advanced Image Products", which EUMETSAT's Data Policy makes Core data. */
+const EUMETSAT_CORE = {
+  tier: "open",
+  note: "EUMETSAT Core data: free and unrestricted under CC BY 4.0, commercial use included, however recent the picture.",
+  url: "https://www-cdn.eumetsat.int/files/2026-01/45173%20-%20Data_Policy.pdf",
+} as const;
+
 const METERED = (freeTier: string) =>
   ({
     tier: "metered",
@@ -87,13 +107,14 @@ const METERED = (freeTier: string) =>
     url: "",
   }) as const;
 
-export const PROVIDERS: readonly Provider[] = [
+export const LAYERS: readonly Layer[] = [
   // ---------------------------------------------------------------- global, keyless, open
   {
     id: "versatiles.satellite",
     label: "VersaTiles Satellite",
-    operator: "VersaTiles",
-    kind: "raster",
+    provider: "versatiles",
+    category: "basemap",
+    kind: "xyz",
     // Absolute template on purpose. Do NOT point MapLibre at the TileJSON: /tiles/satellite
     // returns 500, and /tiles/satellite/tiles.json declares a RELATIVE `tiles` array.
     tiles: ["https://tiles.versatiles.org/tiles/satellite/{z}/{x}/{y}"],
@@ -119,8 +140,9 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "esri.imagery",
     label: "Esri World Imagery",
-    operator: "Esri",
-    kind: "raster",
+    provider: "esri",
+    category: "basemap",
+    kind: "xyz",
     // {z}/{y}/{x} is Esri's ArcGIS tile path order. This is NOT TMS — the y axis still
     // counts from the top, so `scheme` must stay at its xyz default.
     tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
@@ -148,8 +170,9 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "esri.clarity",
     label: "Esri World Imagery (Clarity)",
-    operator: "Esri",
-    kind: "raster",
+    provider: "esri",
+    category: "basemap",
+    kind: "xyz",
     tiles: ["https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
     tileSize: 256,
     minzoom: 0,
@@ -172,16 +195,18 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "esri.wayback",
     label: "Esri Wayback",
-    operator: "Esri",
-    kind: "raster",
-    // {RELEASE} is an OPAQUE INTEGER, not a date — see waybackReleases.ts.
+    provider: "esri",
+    category: "basemap",
+    kind: "xyz",
+    // {TIME} receives the snapshot's OPAQUE INTEGER release id, not its date — see
+    // waybackReleases.ts. The Time is the date; the id is only what the service calls it.
     //
     // Probing this with `curl` without -L looks broken: most releases answer 301 for most
     // tiles, because Wayback redirects to whichever release last *changed* that tile. The
     // redirect carries `Access-Control-Allow-Origin: *` and a 24 h Cache-Control, and
     // browsers follow it transparently. Verified: release 4756 -> 11060 -> 200 image/jpeg.
     // This is correct behaviour. Do not "fix" it.
-    tiles: ["https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/{RELEASE}/{z}/{y}/{x}"],
+    tiles: ["https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/{TIME}/{z}/{y}/{x}"],
     tileSize: 256,
     minzoom: 0,
     // The same archive as esri.imagery, but served over WMTS, which 404s past its coverage
@@ -194,20 +219,15 @@ export const PROVIDERS: readonly Provider[] = [
     note: "A time machine over World Imagery: one dated snapshot per year back to 2014. Put two years in two panes and watch a city get built.",
     attribution: ESRI_WORLD_IMAGERY,
     licence: ESRI_TERMS,
-    variant: {
-      kind: "release",
-      token: "{RELEASE}",
-      values: WAYBACK_RELEASES,
-      default: WAYBACK_LATEST,
-      label: "Snapshot",
-    },
+    time: { precision: "day", label: "Snapshot", values: WAYBACK_RELEASES },
   },
   {
     id: "eox.s2cloudless",
     label: "Sentinel-2 cloudless",
-    operator: "EOX",
-    kind: "raster",
-    tiles: ["https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-{YEAR}_3857/default/g/{z}/{y}/{x}.jpg"],
+    provider: "eox",
+    category: "basemap",
+    kind: "xyz",
+    tiles: ["https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-{TIME}_3857/default/g/{z}/{y}/{x}.jpg"],
     tileSize: 256,
     minzoom: 0,
     // The WMTS capabilities declare tile matrices 0-14, and 14 is where 10 m pixels
@@ -222,70 +242,221 @@ export const PROVIDERS: readonly Provider[] = [
       note: "CC BY-NC-SA 4.0. Non-commercial use only, and derivatives must share alike. A commercial licence is available from EOX.",
       url: "https://cloudless.eox.at/documentation/license",
     },
-    variant: {
-      kind: "year",
-      token: "{YEAR}",
+    time: {
+      precision: "year",
+      label: "Vintage",
       // Measured: 2016 404s outright, and 2017 exists but covers EUROPE ONLY. Everywhere else
       // it answers 200 with a 116-byte fully transparent PNG — note the PNG, even though the
       // request asks for .jpg. That renders as an empty pane indistinguishable from a broken
       // one, and because the status is 200 no tile-error handler can catch it, so 2017 is left
       // out rather than shipped as a trap. 2018 onwards are genuinely global (verified at the
       // Aral Sea, Lake Mead, Nebraska, the Congo Basin and the Sahara).
-      values: [
-        { value: "2018", label: "2018" },
-        { value: "2019", label: "2019" },
-        { value: "2020", label: "2020" },
-        { value: "2021", label: "2021" },
-        { value: "2022", label: "2022" },
-        { value: "2023", label: "2023" },
-        { value: "2024", label: "2024" },
-        { value: "2025", label: "2025" },
-      ],
-      default: "latest",
-      label: "Vintage",
+      values: [{ time: "2018" }, { time: "2019" }, { time: "2020" }, { time: "2021" }, { time: "2022" }, { time: "2023" }, { time: "2024" }, { time: "2025" }],
     },
   },
 
-  // ------------------------------------------------ global, daily, low-res, public domain
+  // ---------------------------------------------------- daily LEO swaths, public domain
+  //
+  // Every GIBS Layer reads its Times from the one capabilities document, so missing days are
+  // skipped rather than drawn black, and a late composite is never "latest". The declared series
+  // is only the fallback for when that document cannot be fetched.
+  //
+  // "Level9" means nine matrices, 0-8 — but the service does serve z9 and rejects z10. Measured,
+  // not inferred from the name; Level7 layers likewise serve z7.
+  //
+  // PACE OCI is left out on purpose (ADR 0001): its daily composite has wide swath gaps and stops
+  // short of the winter hemisphere's mid-latitudes, so in November its z7 tile over Amsterdam is
+  // empty. A blank pane reads as a broken app.
   {
     id: "gibs.viirs.noaa20",
     label: "VIIRS NOAA-20 true colour",
-    operator: "NASA GIBS",
-    kind: "raster",
-    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/{DATE}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "leo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/{TIME}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
     tileSize: 256,
     minzoom: 0,
-    // "Level9" means nine matrices, 0-8 — but the service does serve z9 and rejects z10.
-    // Measured, not inferred from the name.
     maxzoom: 9,
-    note: "Yesterday's Earth at 375 m. Clouds, smoke plumes and dust storms exactly as they were, which every other layer here deliberately hides.",
-    vintage: "daily",
+    note: "Yesterday's Earth at 375 m. Clouds, smoke plumes and dust storms exactly as they were, which every basemap deliberately hides.",
     attribution: GIBS,
     licence: PUBLIC_DOMAIN,
-    variant: { kind: "date", token: "{DATE}", earliest: "2018-01-01", default: "latest", label: "Date" },
+    time: { precision: "day", label: "Date", series: { stepMinutes: DAILY, earliest: "2018-01-05" } },
+  },
+  {
+    id: "gibs.viirs.noaa21",
+    label: "VIIRS NOAA-21 true colour",
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "leo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "VIIRS_NOAA21_CorrectedReflectance_TrueColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA21_CorrectedReflectance_TrueColor/default/{TIME}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 9,
+    note: "NOAA-20's twin, half an orbit behind it: the same sensor over the same day, with the gaps between swaths in different places.",
+    attribution: GIBS,
+    licence: PUBLIC_DOMAIN,
+    time: { precision: "day", label: "Date", series: { stepMinutes: DAILY, earliest: "2023-02-10" } },
   },
   {
     id: "gibs.modis.terra",
     label: "MODIS Terra true colour",
-    operator: "NASA GIBS",
-    kind: "raster",
-    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{DATE}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "leo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "MODIS_Terra_CorrectedReflectance_TrueColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{TIME}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
     tileSize: 256,
     minzoom: 0,
     maxzoom: 9,
-    note: "The same idea at 250 m, but the archive reaches back to February 2000.",
-    vintage: "daily",
+    note: "The same idea at 250 m, but the archive reaches back to February 2000. Morning overpass.",
     attribution: GIBS,
     licence: PUBLIC_DOMAIN,
-    variant: { kind: "date", token: "{DATE}", earliest: "2000-02-24", default: "latest", label: "Date" },
+    time: { precision: "day", label: "Date", series: { stepMinutes: DAILY, earliest: "2000-02-24" } },
+  },
+  {
+    id: "gibs.modis.aqua",
+    label: "MODIS Aqua true colour",
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "leo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "MODIS_Aqua_CorrectedReflectance_TrueColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Aqua_CorrectedReflectance_TrueColor/default/{TIME}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 9,
+    note: "Terra's afternoon partner since 2002. Put the two side by side and watch a morning's clouds build into an afternoon's storms.",
+    attribution: GIBS,
+    licence: PUBLIC_DOMAIN,
+    time: { precision: "day", label: "Date", series: { stepMinutes: DAILY, earliest: "2002-07-03" } },
+  },
+  // ------------------------------------------------------ geostationary, every few minutes
+  {
+    id: "gibs.goes.east",
+    label: "GOES-East GeoColor",
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "geo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "GOES-East_ABI_GeoColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_GeoColor/default/{TIME}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png"],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 7,
+    probePoint: { lat: -5, lon: -60, name: "Amazon" },
+    coverageNote: "One disk centred on 75°W: the Americas and the Atlantic. Nothing beyond about 150°W or 0°.",
+    note: "GOES-19 every ten minutes, day and night: true colour by day, infrared clouds over city lights by night. GIBS keeps the last 90 days.",
+    attribution: GOES,
+    licence: NOAA_OPEN,
+    time: { precision: "minute", label: "Time", series: { stepMinutes: 10, latencyMinutes: 60, retentionDays: 90 } },
+  },
+  {
+    id: "gibs.goes.west",
+    label: "GOES-West GeoColor",
+    provider: "nasa-gibs",
+    category: "satellite",
+    orbit: "geo",
+    kind: "wmts",
+    capabilities: GIBS_CAPABILITIES,
+    layer: "GOES-West_ABI_GeoColor",
+    tiles: ["https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-West_ABI_GeoColor/default/{TIME}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png"],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 7,
+    probePoint: { lat: 20, lon: -155, name: "Hawaii" },
+    coverageNote: "One disk centred on 137°W: the Pacific, western Americas and Hawaii.",
+    note: "GOES-18 over the Pacific, every ten minutes, day and night. The overlap with GOES-East over the Rockies is a ready-made comparison of two copies of one instrument.",
+    attribution: GOES,
+    licence: NOAA_OPEN,
+    time: { precision: "minute", label: "Time", series: { stepMinutes: 10, latencyMinutes: 60, retentionDays: 90 } },
+  },
+  {
+    id: "eumetsat.mtg.geocolour",
+    label: "Meteosat-12 GeoColour",
+    provider: "eumetsat",
+    category: "satellite",
+    orbit: "geo",
+    kind: "wms",
+    // EUMETView's WMTS endpoint answers 400 "Error getting coverage reader"; WMS is the only
+    // working route. The per-layer capabilities are 6.5 KB where the service-wide ones are
+    // megabytes.
+    url: "https://view.eumetsat.int/geoserver/ows",
+    layers: "mtg_fd:rgb_geocolour",
+    capabilities: "https://view.eumetsat.int/geoserver/mtg_fd/rgb_geocolour/ows?service=WMS&version=1.3.0&request=GetCapabilities",
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 7,
+    probePoint: { lat: 10, lon: 20, name: "Chad" },
+    coverageNote: "One disk centred on 0°: Europe, Africa and the Atlantic. Nothing beyond about 80° east or west.",
+    note: "Meteosat Third Generation's imager every ten minutes, day and night. The only geostationary view of Europe here.",
+    attribution: '© <a href="https://www.eumetsat.int/">EUMETSAT</a> {YEAR} (CC BY 4.0)',
+    licence: EUMETSAT_CORE,
+    time: { precision: "minute", label: "Time", series: { stepMinutes: 10, latencyMinutes: 30, earliest: "2024-09-23" } },
+  },
+  {
+    id: "eumetsat.georing.natural",
+    label: "Geostationary ring natural colour",
+    provider: "eumetsat",
+    category: "satellite",
+    orbit: "geo",
+    kind: "wms",
+    // EUMETSAT product EO:EUM:DAT:0336. A daylight-only RGB, which the catalogue otherwise leaves
+    // out (docs/adr/0001): kept because it is the only whole-Earth geostationary archive here,
+    // every three hours back to June 2021.
+    url: "https://view.eumetsat.int/geoserver/ows",
+    layers: "mumi:wideareacoverage_rgb_natural",
+    capabilities: "https://view.eumetsat.int/geoserver/mumi/wideareacoverage_rgb_natural/ows?service=WMS&version=1.3.0&request=GetCapabilities",
+    tileSize: 256,
+    minzoom: 0,
+    // About 3 km pixels: z6 still carries detail, z7 is visibly upsampled.
+    maxzoom: 6,
+    daylightOnly: true,
+    coverageNote: "The whole Earth between the polar caps, but only where the sun is up: the night side of every picture is black.",
+    note: "Meteosat (0° and Indian Ocean), GOES-East, GOES-West and Himawari-9 joined into one natural-colour picture every three hours, back to June 2021. Natural colour needs sunlight, so half the planet is always dark.",
+    attribution: '© <a href="https://www.eumetsat.int/">EUMETSAT</a> {YEAR} (CC BY 4.0), with GOES data from NOAA and Himawari-9 data from JMA',
+    licence: EUMETSAT_CORE,
+    time: { precision: "minute", label: "Time", series: { stepMinutes: 3 * 60, latencyMinutes: 3 * 60, earliest: "2021-06-03" } },
+  },
+  {
+    id: "satvis.georing",
+    label: "Geostationary ring mosaic",
+    provider: "satvis",
+    category: "satellite",
+    orbit: "geo",
+    kind: "stac",
+    collection: "https://s.satvis.space/geo/mosaic/collection.json",
+    asset: "image",
+    minzoom: 0,
+    // The COG's own tiling: GoogleMapsCompatible z7 at 512 px, which is z8 in 256 px tiles.
+    maxzoom: 8,
+    coverageNote: "The whole Earth between the polar caps; seams where the four disks meet.",
+    note: "GOES-East, GOES-West, Himawari-9 and Meteosat joined into one hourly picture of the whole planet at 611 m. Only the last few hours are kept.",
+    attribution: 'Contains modified EUMETSAT Meteosat data {YEAR} (CC BY 4.0); GOES: NOAA; Himawari-9: JMA via NOAA. Mosaic by <a href="https://satvis.space/">satvis</a>',
+    licence: {
+      tier: "open",
+      note: "Built from NOAA (public domain), JMA via NOAA (free with credit) and EUMETSAT (CC BY 4.0) imagery. EUMETSAT's CC BY 4.0 is the strictest part: credit, link and say it was modified.",
+      url: "https://creativecommons.org/licenses/by/4.0/",
+    },
+    time: { precision: "minute", label: "Time", series: { stepMinutes: 60, latencyMinutes: 30, retentionDays: 0.25 } },
   },
 
   // ------------------------------------------------------------------------ global, keyed
   {
     id: "mapbox.satellite",
     label: "Mapbox Satellite",
-    operator: "Mapbox",
-    kind: "raster",
+    provider: "mapbox",
+    category: "basemap",
+    kind: "xyz",
     tiles: ["https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token={KEY}"],
     // @2x returns 512 px tiles. Getting this wrong scales the whole layer by 2.
     tileSize: 512,
@@ -313,11 +484,12 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "maptiler.satellite",
     label: "MapTiler Satellite",
-    operator: "MapTiler",
+    provider: "maptiler",
+    category: "basemap",
     kind: "style",
     styleUrl: "https://api.maptiler.com/maps/satellite/style.json?key={KEY}",
     minzoom: 0,
-    // Advisory only for style providers — the real limits come from the fetched style.
+    // Advisory only for style Layers — the real limits come from the fetched style.
     // Drives the zoom-fit badge.
     maxzoom: 20,
     note: "Global ~50 cm imagery, colour-balanced more aggressively than Esri's.",
@@ -338,8 +510,9 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "stadia.alidade_satellite",
     label: "Stadia Alidade Satellite",
-    operator: "Stadia Maps",
-    kind: "raster",
+    provider: "stadia",
+    category: "basemap",
+    kind: "xyz",
     tiles: ["https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}@2x.jpg?api_key={KEY}"],
     tileSize: 512,
     minzoom: 0,
@@ -358,7 +531,8 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "arcgis.imagery",
     label: "ArcGIS Imagery (licensed)",
-    operator: "Esri",
+    provider: "esri",
+    category: "basemap",
     kind: "style",
     styleUrl: "https://basemapstyles-api.arcgis.com/arcgis/rest/services/styles/v2/styles/arcgis/imagery?token={KEY}",
     minzoom: 0,
@@ -377,8 +551,9 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "here.satellite",
     label: "HERE Satellite",
-    operator: "HERE",
-    kind: "raster",
+    provider: "here",
+    category: "basemap",
+    kind: "xyz",
     tiles: ["https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&apiKey={KEY}"],
     tileSize: 512,
     minzoom: 0,
@@ -397,7 +572,8 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "openfreemap.liberty",
     label: "OpenFreeMap Liberty",
-    operator: "OpenFreeMap",
+    provider: "openfreemap",
+    category: "map",
     kind: "style",
     styleUrl: "https://tiles.openfreemap.org/styles/liberty",
     minzoom: 0,
@@ -412,29 +588,29 @@ export const PROVIDERS: readonly Provider[] = [
   },
 ];
 
-export const PROVIDER_IDS: ReadonlySet<string> = new Set(PROVIDERS.map((p) => p.id));
+export const LAYER_IDS: ReadonlySet<string> = new Set(LAYERS.map((l) => l.id));
 
-export function getProvider(id: string): Provider | undefined {
-  return PROVIDERS.find((p) => p.id === id);
+export function getLayer(id: string): Layer | undefined {
+  return LAYERS.find((l) => l.id === id);
 }
 
 /**
- * The provider whose style the label overlay is extracted from.
+ * The Layer whose style the label overlay is extracted from.
  *
  * Named here rather than duplicated as a second URL literal in `api/styles.ts`. The overlay IS this
- * provider's symbol layers, so `useResolvedStyle` decides whether to suppress the overlay by
- * comparing the resolved style URL against it. Two copies of the string meant a provider URL change
+ * Layer's symbol layers, so `useResolvedStyle` decides whether to suppress the overlay by
+ * comparing the resolved style URL against it. Two copies of the string meant a Layer URL change
  * would silently make that comparison false, and the Liberty pane would then draw every label twice
  * with the two copies competing for placement — the exact thing the suppression exists to prevent.
  */
-export const LABEL_OVERLAY_PROVIDER_ID = "openfreemap.liberty";
+export const LABEL_OVERLAY_LAYER_ID = "openfreemap.liberty";
 
 export function labelOverlayStyleUrl(): string {
-  const provider = getProvider(LABEL_OVERLAY_PROVIDER_ID);
+  const layer = getLayer(LABEL_OVERLAY_LAYER_ID);
   // Loud rather than silent: without it the label toggle is broken either way, and a registry guard
   // test pins the invariant so this cannot reach a build.
-  if (provider?.kind !== "style") throw new Error(`${LABEL_OVERLAY_PROVIDER_ID} must exist as a style provider: the label overlay is extracted from its document`);
-  return provider.styleUrl;
+  if (layer?.kind !== "style") throw new Error(`${LABEL_OVERLAY_LAYER_ID} must exist as a style Layer: the label overlay is extracted from its document`);
+  return layer.styleUrl;
 }
 
 /**
@@ -445,8 +621,8 @@ export function labelOverlayStyleUrl(): string {
  * is blank, and the resolution gap between them is obvious without any explanatory copy.
  */
 export const DEFAULT_PANE_LAYERS: readonly PaneLayer[] = [
-  { providerId: "versatiles.satellite" },
-  { providerId: "esri.imagery" },
-  { providerId: "eox.s2cloudless" },
-  { providerId: "esri.wayback" },
+  { layerId: "versatiles.satellite" },
+  { layerId: "esri.imagery" },
+  { layerId: "eox.s2cloudless" },
+  { layerId: "esri.wayback" },
 ];

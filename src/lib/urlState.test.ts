@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PaneLayer } from "@/lib/providers/types";
+import type { PaneLayer } from "@/lib/layers/types";
 
 import { MODES } from "./mode";
 import { paneCountFor } from "./mode";
@@ -8,12 +8,12 @@ import { fractionFromPointer, MIN_INSET } from "./swipe";
 import { type AppStateSnapshot, canonicalise, decodeState, encodeState } from "./urlState";
 
 const IDS = new Set(["versatiles.satellite", "esri.imagery", "eox.s2cloudless", "esri.wayback"]);
-const DEFAULTS: readonly PaneLayer[] = [{ providerId: "versatiles.satellite" }, { providerId: "esri.imagery" }, { providerId: "eox.s2cloudless" }, { providerId: "esri.wayback" }];
+const DEFAULTS: readonly PaneLayer[] = [{ layerId: "versatiles.satellite" }, { layerId: "esri.imagery" }, { layerId: "eox.s2cloudless" }, { layerId: "esri.wayback" }];
 
 const FALLBACK: AppStateSnapshot = {
   mode: "g2",
   camera: { center: [4.893, 52.373], zoom: 16, bearing: 0, pitch: 0, roll: 0 },
-  panes: [{ providerId: "versatiles.satellite" }, { providerId: "esri.imagery" }],
+  panes: [{ layerId: "versatiles.satellite" }, { layerId: "esri.imagery" }],
   swipe: 0.5,
   labels: false,
 };
@@ -21,7 +21,7 @@ const FALLBACK: AppStateSnapshot = {
 const encode = (s: AppStateSnapshot) => encodeState(s, DEFAULTS);
 const decode = (search: string) => decodeState(search, IDS, DEFAULTS, FALLBACK);
 const canon = (s: AppStateSnapshot) => canonicalise(s, DEFAULTS);
-const allDefaults = (): PaneLayer[] => DEFAULTS.map((d) => ({ providerId: d.providerId, variant: d.variant }));
+const allDefaults = (): PaneLayer[] => DEFAULTS.map((d) => ({ layerId: d.layerId, time: d.time }));
 
 describe("encodeState", () => {
   it("emits parameters in a fixed order", () => {
@@ -41,8 +41,8 @@ describe("encodeState", () => {
     expect(encoded).toContain("v=16.00/52.37300/4.89300/0.0/30.0");
   });
 
-  it("appends a variant with a colon", () => {
-    expect(encode({ ...FALLBACK, panes: [{ providerId: "eox.s2cloudless", variant: "2019" }, { providerId: "esri.imagery" }] })).toContain("p=eox.s2cloudless:2019,esri.imagery");
+  it("appends a Time with a colon", () => {
+    expect(encode({ ...FALLBACK, panes: [{ layerId: "eox.s2cloudless", time: "2019" }, { layerId: "esri.imagery" }] })).toContain("p=eox.s2cloudless:2019,esri.imagery");
   });
 
   it("omits the divider when centred, and includes it otherwise", () => {
@@ -69,7 +69,7 @@ describe("round-trip properties", () => {
   // three properties that actually hold, and they are what "lossless" means here.
   const rawStates: AppStateSnapshot[] = [
     FALLBACK,
-    { ...FALLBACK, mode: "g1", panes: [{ providerId: "esri.imagery" }] },
+    { ...FALLBACK, mode: "g1", panes: [{ layerId: "esri.imagery" }] },
     { ...FALLBACK, mode: "g4", panes: allDefaults() },
     { ...FALLBACK, mode: "sw", swipe: 0.375 },
     { ...FALLBACK, mode: "bl" },
@@ -78,8 +78,8 @@ describe("round-trip properties", () => {
     {
       ...FALLBACK,
       panes: [
-        { providerId: "eox.s2cloudless", variant: "2017" },
-        { providerId: "eox.s2cloudless", variant: "2025" },
+        { layerId: "eox.s2cloudless", time: "2017" },
+        { layerId: "eox.s2cloudless", time: "2025" },
       ],
     },
   ];
@@ -114,9 +114,9 @@ describe("round-trip properties", () => {
 
 describe("canonicalise", () => {
   it("reconciles pane count up to match the mode", () => {
-    const result = canon({ ...FALLBACK, mode: "g4", panes: [{ providerId: "esri.imagery" }] });
+    const result = canon({ ...FALLBACK, mode: "g4", panes: [{ layerId: "esri.imagery" }] });
     expect(result.panes).toHaveLength(4);
-    expect(result.panes[0]).toStrictEqual({ providerId: "esri.imagery" });
+    expect(result.panes[0]).toStrictEqual({ layerId: "esri.imagery" });
   });
 
   it("reconciles pane count down to match the mode", () => {
@@ -175,9 +175,9 @@ describe("canonicalise", () => {
     }
   });
 
-  it("normalises an absent variant rather than storing undefined", () => {
-    const result = canon({ ...FALLBACK, panes: [{ providerId: "esri.imagery", variant: undefined }, { providerId: "esri.imagery" }] });
-    expect(Object.hasOwn(result.panes[0]!, "variant")).toBe(false);
+  it("normalises an absent Time rather than storing undefined", () => {
+    const result = canon({ ...FALLBACK, panes: [{ layerId: "esri.imagery", time: undefined }, { layerId: "esri.imagery" }] });
+    expect(Object.hasOwn(result.panes[0]!, "time")).toBe(false);
   });
 });
 
@@ -194,17 +194,17 @@ describe("decodeState", () => {
     // A future build may stop shipping a provider; an old link should still render.
     const result = decode("?m=g2&v=16.00/52.37300/4.89300&p=gone.away,esri.imagery");
     expect(result.panes).toHaveLength(2);
-    expect(result.panes.map((p) => p.providerId)).not.toContain("gone.away");
+    expect(result.panes.map((p) => p.layerId)).not.toContain("gone.away");
   });
 
   it("falls back to defaults when every provider id is unknown", () => {
     const result = decode("?p=nope.one,nope.two");
-    expect(result.panes.map((p) => p.providerId)).toStrictEqual(["versatiles.satellite", "esri.imagery"]);
+    expect(result.panes.map((p) => p.layerId)).toStrictEqual(["versatiles.satellite", "esri.imagery"]);
   });
 
-  it("keeps a variant it does not understand, for the provider to resolve", () => {
-    // Only the provider knows its vintages, and resolveVariant clamps at render time.
-    expect(decode("?p=eox.s2cloudless:1999,esri.imagery").panes[0]).toStrictEqual({ providerId: "eox.s2cloudless", variant: "1999" });
+  it("keeps a Time it does not understand, for the Layer to resolve", () => {
+    // Only the provider knows its vintages, and resolveTime clamps at render time.
+    expect(decode("?p=eox.s2cloudless:1999,esri.imagery").panes[0]).toStrictEqual({ layerId: "eox.s2cloudless", time: "1999" });
   });
 
   it("rejects an unknown mode", () => {
@@ -246,7 +246,7 @@ describe("decodeState", () => {
   });
 
   it("tolerates empty pane tokens", () => {
-    expect(decode("?p=esri.imagery,,versatiles.satellite").panes.map((p) => p.providerId)).toStrictEqual(["esri.imagery", "versatiles.satellite"]);
+    expect(decode("?p=esri.imagery,,versatiles.satellite").panes.map((p) => p.layerId)).toStrictEqual(["esri.imagery", "versatiles.satellite"]);
   });
 
   it("decodes a full shared link", () => {
@@ -255,8 +255,8 @@ describe("decodeState", () => {
     expect(result.camera.zoom).toBe(11.42);
     expect(result.camera.center).toStrictEqual([59.5, 45]);
     expect(result.panes).toStrictEqual([
-      { providerId: "eox.s2cloudless", variant: "2017" },
-      { providerId: "eox.s2cloudless", variant: "2025" },
+      { layerId: "eox.s2cloudless", time: "2017" },
+      { layerId: "eox.s2cloudless", time: "2025" },
     ]);
     expect(result.swipe).toBe(0.375);
     expect(result.labels).toBe(true);
