@@ -1,4 +1,4 @@
-import type { ApiKeyName } from "@/lib/providers/types";
+import type { ApiKeyName } from "@/lib/layers/types";
 
 /**
  * The only module in the repo that reads `import.meta.env`.

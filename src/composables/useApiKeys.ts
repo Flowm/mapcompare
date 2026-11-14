@@ -2,8 +2,8 @@ import { useLocalStorage } from "@vueuse/core";
 import { computed } from "vue";
 
 import { API_KEYS } from "@/env";
-import { type ApiKeys, hasKey } from "@/lib/providers/availability";
-import { API_KEY_NAMES, type ApiKeyName } from "@/lib/providers/types";
+import { type ApiKeys, hasKey } from "@/lib/layers/availability";
+import { API_KEY_NAMES, type ApiKeyName } from "@/lib/layers/types";
 
 /**
  * The seam that keeps `src/lib/**` pure: nothing under `lib/` imports `src/env.ts`, and resolved

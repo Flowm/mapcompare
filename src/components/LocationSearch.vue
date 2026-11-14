@@ -17,7 +17,7 @@ import { PRESETS } from "@/lib/presets";
  * thing they are moving over. Everything specific to a source lives in its subtitle.
  *
  * The panel is a plain absolutely-positioned sibling rather than a teleported one, like the menu it
- * replaces: it hangs off the header, where nothing clips it. BasemapPicker needs the teleport
+ * replaces: it hangs off the header, where nothing clips it. LayerPicker needs the teleport
  * because it opens inside a pane, under `overflow-hidden` and a swipe seam's `clip-path`.
  *
  * A coordinate row shows the parse back, including the format it was read as and whether the axes

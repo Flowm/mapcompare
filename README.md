@@ -1,7 +1,8 @@
 # mapcompare
 
-Compare satellite and aerial basemaps side by side over the same ground, with the resolution,
-vintage and licence of each one shown as you look at it.
+Compare map layers side by side over the same ground — satellite and aerial basemaps, daily
+satellite swaths and geostationary imagery every ten minutes — with the resolution, time and
+licence of each one shown as you look at it.
 
 Live at **[mapcompare.frcy.org](https://mapcompare.frcy.org)**.
 
@@ -27,11 +28,18 @@ over the same street. Hence this.
 - **1–4 synced panes**, a **swipe curtain** with a pixel-exact seam, and **blink** for spotting
   subtle differences — hold `B` to peek at the other layer, `Space` or the on-screen control to
   stay on it
-- **~30 layers**: VersaTiles, Esri World Imagery, Esri Clarity, Esri Wayback (one dated snapshot
-  per year back to 2014), Sentinel-2 cloudless 2018–2025, NASA GIBS daily, plus Mapbox, MapTiler,
-  Stadia, ArcGIS and HERE when you supply a key
+- **Basemaps**: VersaTiles, Esri World Imagery, Esri Clarity, Esri Wayback (one dated snapshot
+  per year back to 2014), Sentinel-2 cloudless 2018–2025, plus Mapbox, MapTiler, Stadia, ArcGIS
+  and HERE when you supply a key
+- **Satellite imagery with a time control**: daily VIIRS and MODIS swaths from NASA GIBS, GOES-East
+  and GOES-West every ten minutes, Meteosat-12 from EUMETSAT, and an hourly mosaic of all four
+  geostationary disks. Each layer asks its service which times exist, so missing days are stepped
+  over and a late satellite is never shown as black
+- **Filter and group the catalogue** by type (basemap, satellite, map), orbit (LEO, GEO),
+  cadence and provider
 - **Optional label overlay** from OpenFreeMap, drawn identically over every pane
-- **Licence, vintage, overzoom and missing-tile chips** per pane
+- **Licence, time, overzoom and missing-tile chips** per pane, plus a warning when a shared link
+  asks for a time the layer no longer has
 - **A layer manager** holding the whole catalogue, the licence notes, the API keys and the sources
   table, with a one-line switcher on every pane for the everyday job
 - **Shareable URLs** — every comparison is a link
@@ -68,10 +76,26 @@ The only keyless layer here that is safe for commercial use.
 | Layer                     | Coverage                            | Max zoom |
 | ------------------------- | ----------------------------------- | -------- |
 | VIIRS NOAA-20 true colour | Yesterday's Earth at 375 m          | 9        |
+| VIIRS NOAA-21 true colour | NOAA-20's twin, half an orbit apart | 9        |
 | MODIS Terra true colour   | Same at 250 m, archive back to 2000 | 9        |
+| MODIS Aqua true colour    | Terra's afternoon partner, 2002–    | 9        |
 
-These show clouds, smoke and dust as they actually were, which every other layer here
-deliberately hides.
+These show clouds, smoke and dust as they actually were, which every basemap deliberately hides.
+
+### Geostationary, every few minutes
+
+| Layer                     | Provider            | Coverage                                 | Max zoom | Licence   |
+| ------------------------- | ------------------- | ---------------------------------------- | -------- | --------- |
+| GOES-East GeoColor        | NASA GIBS (NOAA)    | Americas and Atlantic, last 90 days      | 7        | open      |
+| GOES-West GeoColor        | NASA GIBS (NOAA)    | Pacific, last 90 days                    | 7        | open      |
+| Meteosat-12 GeoColour     | EUMETSAT (WMS)      | Europe, Africa, Atlantic                 | 7        | CC BY 4.0 |
+| Geo ring natural colour   | EUMETSAT (WMS)      | Whole Earth by day, 3-hourly since 2021  | 6        | CC BY 4.0 |
+| Geostationary ring mosaic | satvis (STAC + COG) | Whole Earth, hourly, last few hours only | 8        | CC BY 4.0 |
+
+Sparse layers are left out on purpose: single-orbit swaths, daylight-only RGBs and PACE OCI (whose
+daily composite misses the winter mid-latitudes) leave a pane mostly blank, which reads as a broken
+app. The one exception is EUMETSAT's geostationary ring natural colour, the only whole-Earth
+geostationary archive here. See `docs/adr/0001-one-layer-per-pane.md`.
 
 ### Global, needs a key
 
@@ -179,15 +203,15 @@ pnpm install
 pnpm dev
 ```
 
-| Script                           |                                                      |
-| -------------------------------- | ---------------------------------------------------- |
-| `pnpm dev`                       | Vite dev server                                      |
-| `pnpm build` / `preview`         | Production build and preview it                      |
-| `pnpm test`                      | vitest                                               |
-| `pnpm lint` / `lint:fix`         | oxlint + oxfmt + vue-tsc                             |
-| `pnpm probe-tiles`               | Re-check the registry against the live tile services |
-| `pnpm fetch-wayback`             | Regenerate the Esri Wayback date → release mapping   |
-| `pnpm deploy` / `deploy:preview` | Cloudflare Workers                                   |
+| Script                           |                                                    |
+| -------------------------------- | -------------------------------------------------- |
+| `pnpm dev`                       | Vite dev server                                    |
+| `pnpm build` / `preview`         | Production build and preview it                    |
+| `pnpm test`                      | vitest                                             |
+| `pnpm lint` / `lint:fix`         | oxlint + oxfmt + vue-tsc                           |
+| `pnpm probe-tiles`               | Re-check the registry against the live services    |
+| `pnpm fetch-wayback`             | Regenerate the Esri Wayback date → release mapping |
+| `pnpm deploy` / `deploy:preview` | Cloudflare Workers                                 |
 
 ## Architecture
 
@@ -207,7 +231,7 @@ Four pieces carry most of the risk and most of the comments explaining why:
   maplibre-gl v6's source: `jumpTo` fires its move events synchronously and unconditionally, so a
   plain re-entrancy guard is airtight. The same reasoning fails for `easeTo`/`flyTo`, which is why
   they are never used to propagate a camera. Unit-tested against a fake map, with no WebGL.
-- **`components/BasemapPicker.vue`** teleports its popover to `<body>` and positions it from the
+- **`components/LayerPicker.vue`** teleports its popover to `<body>` and positions it from the
   trigger's viewport rect (`lib/anchor.ts`, unit-tested). Left inside the pane it would be clipped
   three ways: by `overflow-hidden`, by the neighbouring pane's chrome, and in swipe mode by the top
   pane's `clip-path`.
@@ -222,10 +246,18 @@ Four pieces carry most of the risk and most of the comments explaining why:
 the browser: a ceiling set too high blanks the pane, and a wrong tile size renders plausible
 imagery a whole zoom level off, which in a comparison tool produces confidently wrong conclusions.
 
-1. Add the entry to `src/lib/providers/registry.ts`.
-2. Run `pnpm probe-tiles`. It checks two points, one deliberately non-European, and fails on a
-   wrong tile size, an unreachable ceiling, or a no-data placeholder served as a 200.
+1. Add the entry to `src/lib/layers/registry.ts`. Its `kind` says how pixels arrive — `xyz`,
+   `wmts`, `wms`, `style`, `cog` or `stac` — and nothing in the app is specific to a provider. A
+   layer with a `time` spec gets a time control; `wmts`, `wms` and `stac` layers read their times
+   from the service and fall back to the declared `series` only when it cannot be reached. A layer
+   that only covers part of the Earth needs a `coverageNote` and a `probePoint`.
+2. Run `pnpm probe-tiles`. It checks points on several continents, and fails on a wrong tile
+   size, an unreachable ceiling, a no-data placeholder served as a 200, or a time-aware layer whose
+   newest picture has fallen far behind its cadence.
 3. Run `pnpm test`. The registry guard tests pin the invariants.
+
+The vocabulary — Layer, Provider, Time, Category, Orbit, Cadence — is defined in
+[CONTEXT.md](CONTEXT.md), and the decisions behind it in [docs/adr](docs/adr).
 
 ## Deploy
 

@@ -31,7 +31,7 @@ export default defineConfig({
       manifest: {
         name: "mapcompare",
         short_name: "mapcompare",
-        description: "Compare satellite and aerial basemaps side by side, with resolution, vintage and licence shown for each.",
+        description: "Compare map layers side by side — basemaps, daily satellite swaths and geostationary imagery — with resolution, time and licence shown for each.",
         theme_color: themeColor,
         background_color: themeColor,
         display: "standalone",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getProvider } from "@/lib/providers/registry";
+import { getLayer } from "@/lib/layers/registry";
 
 import { formatZoomFit, shortZoomFit, zoomFit, zoomSeverity } from "./zoomFit";
 
@@ -79,16 +79,16 @@ describe("zoomSeverity", () => {
 describe("against the real registry", () => {
   it("flags Sentinel-2 cloudless as overzoomed at the default view", () => {
     // The app opens at z16, so this badge is visible the moment anyone picks that layer.
-    const fit = zoomFit(getProvider("eox.s2cloudless")!, 16);
+    const fit = zoomFit(getLayer("eox.s2cloudless")!, 16);
     expect(fit).toMatchObject({ kind: "upscaled", nativeMax: 14, factor: 4 });
   });
 
   it("keeps Esri native at the default view", () => {
-    expect(zoomFit(getProvider("esri.imagery")!, 16)).toStrictEqual({ kind: "native" });
+    expect(zoomFit(getLayer("esri.imagery")!, 16)).toStrictEqual({ kind: "native" });
   });
 
   it("keeps VersaTiles native at the default view", () => {
     // Amsterdam z16 sits inside VersaTiles' measured European ceiling of 17.
-    expect(zoomFit(getProvider("versatiles.satellite")!, 16)).toStrictEqual({ kind: "native" });
+    expect(zoomFit(getLayer("versatiles.satellite")!, 16)).toStrictEqual({ kind: "native" });
   });
 });

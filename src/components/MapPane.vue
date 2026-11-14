@@ -11,8 +11,8 @@ import { useDisplaySettings } from "@/composables/useDisplaySettings";
 import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
 import { ZOOM_LIMITS } from "@/lib/camera";
-import { getProvider } from "@/lib/providers/registry";
-import type { PaneLayer } from "@/lib/providers/types";
+import { getLayer } from "@/lib/layers/registry";
+import type { PaneLayer } from "@/lib/layers/types";
 
 const props = defineProps<{
   layer: PaneLayer;
@@ -35,12 +35,12 @@ const { allowRotate } = useDisplaySettings();
 
 const layerRef = computed(() => props.layer);
 const { resolved } = useResolvedStyle(layerRef);
-const provider = computed(() => getProvider(props.layer.providerId));
+const layerDef = computed(() => getLayer(props.layer.layerId));
 const { failed } = usePaneTiles(map);
 
 /**
  * The credit for what is actually applied. Decided by `useResolvedStyle` rather than re-derived
- * here, because only that module knows which providers ended up on screen — a pane's own provider
+ * here, because only that module knows which Layers ended up on screen — a pane's own Layer
  * plus the label overlay, whose credit is nowhere in the style document to be read back.
  */
 const appliedCredit = computed(() => (resolved.value.state === "ready" ? resolved.value.credit : undefined));
@@ -49,12 +49,12 @@ const appliedCredit = computed(() => (resolved.value.state === "ready" ? resolve
 const chromeSide = computed(() => (props.side === "left" ? "left" : "right"));
 
 /**
- * The variant actually applied, for the same reason: the vintage chip has to describe what is on
- * screen. `layer.variant` is only the *request* — usually absent, since a URL that pins no vintage
- * means "latest" — so deriving the chip from it showed a date pane as "daily" instead of naming the
- * day, and could never have shown the resolved date at all.
+ * The Time actually shown, for the same reason: the Time chip has to describe what is on screen.
+ * `layer.time` is only the *request* — usually absent, since a URL that pins no Time means
+ * "latest" — so deriving the chip from it could never name the picture being compared.
  */
-const appliedVariant = computed(() => (resolved.value.state === "ready" ? resolved.value.variant : props.layer.variant));
+const appliedTime = computed(() => (resolved.value.state === "ready" ? resolved.value.time : undefined));
+const ended = computed(() => (resolved.value.state === "ready" ? resolved.value.ended : undefined));
 
 let unregister: (() => void) | undefined;
 
@@ -77,7 +77,7 @@ onMounted(() => {
     attributionControl: false,
 
     // Every pane gets identical limits, taken from the module that owns the range so they cannot
-    // drift from what `moveCamera` clamps to. Never derive these from the provider's native zoom
+    // drift from what `moveCamera` clamps to. Never derive these from the Layer's native zoom
     // range: a pane that clamps differently reports a different zoom back to the sync group
     // and the panes fight each other. Zoom disparity is a UI concern, not a camera one.
     minZoom: ZOOM_LIMITS.min,
@@ -160,8 +160,8 @@ useResizeObserver(container, () => map.value?.resize());
          the top of the same side. Keeping them together on one side is what guarantees they stay
          inside the visible region when the top pane is clipped. -->
     <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
-      <div v-if="provider" class="pointer-events-auto">
-        <PaneStatus :provider="provider" :variant="appliedVariant" :failed-tiles="failed" />
+      <div v-if="layerDef" class="pointer-events-auto">
+        <PaneStatus :layer="layerDef" :time="appliedTime" :ended="ended" :failed-tiles="failed" />
       </div>
       <!-- Only ever the credit for imagery actually on screen: `credit` rides the `ready` state, so
            a pane blocked on a missing key or a failed style shows no vendor mark. -->
@@ -172,26 +172,26 @@ useResizeObserver(container, () => map.value?.resize());
          than blanking, which is correct behaviour, and the pane badge explains it. -->
     <div v-if="resolved.state === 'missing-key'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
-        <p class="text-ink-50 text-sm font-medium">{{ resolved.providerLabel }} needs an API key</p>
+        <p class="text-ink-50 text-sm font-medium">{{ resolved.layerLabel }} needs an API key</p>
         <p class="text-ink-400 mt-2 text-xs leading-relaxed">
           Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste a key in Settings.
         </p>
-        <a v-if="provider?.keyUrl" :href="provider.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent mt-3 inline-block text-xs hover:underline">
-          Get a key<span v-if="provider.freeTier"> — {{ provider.freeTier }}</span> ↗
+        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent mt-3 inline-block text-xs hover:underline">
+          Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗
         </a>
       </div>
     </div>
 
     <div v-else-if="resolved.state === 'error'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
-        <p class="text-ink-50 text-sm font-medium">Could not load this basemap</p>
+        <p class="text-ink-50 text-sm font-medium">Could not load this layer</p>
         <p class="text-ink-400 mt-2 font-mono text-xs leading-relaxed break-words">{{ resolved.message }}</p>
       </div>
     </div>
 
-    <div v-else-if="resolved.state === 'unknown-provider'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
+    <div v-else-if="resolved.state === 'unknown-layer'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <p class="text-ink-400 max-w-xs text-sm">
-        Unknown basemap <code class="text-ink-200 font-mono">{{ resolved.providerId }}</code>
+        Unknown layer <code class="text-ink-200 font-mono">{{ resolved.layerId }}</code>
       </p>
     </div>
   </div>

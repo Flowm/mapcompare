@@ -3,8 +3,8 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useDialogDismiss } from "@/composables/useDialogDismiss";
-import { PROVIDERS } from "@/lib/providers/registry";
-import type { ApiKeyName } from "@/lib/providers/types";
+import { LAYERS } from "@/lib/layers/registry";
+import type { ApiKeyName } from "@/lib/layers/types";
 
 const open = defineModel<boolean>("open", { required: true });
 const props = defineProps<{ focusKey?: ApiKeyName }>();
@@ -14,15 +14,15 @@ const { sources, overrides, setKey, clearKey } = useApiKeys();
 const dialog = ref<HTMLDialogElement>();
 const dismiss = useDialogDismiss(dialog, () => (open.value = false));
 
-/** One row per key, listing which providers it unlocks. */
+/** One row per key, listing which layers it unlocks. */
 const rows = computed(() => {
-  const byKey = new Map<ApiKeyName, { name: ApiKeyName; providers: typeof PROVIDERS; keyUrl?: string; freeTier?: string }>();
-  for (const provider of PROVIDERS) {
-    const name = provider.requiresKey;
+  const byKey = new Map<ApiKeyName, { name: ApiKeyName; layers: typeof LAYERS; keyUrl?: string; freeTier?: string }>();
+  for (const layer of LAYERS) {
+    const name = layer.requiresKey;
     if (!name) continue;
     const existing = byKey.get(name);
-    if (existing) existing.providers = [...existing.providers, provider];
-    else byKey.set(name, { name, providers: [provider], keyUrl: provider.keyUrl, freeTier: provider.freeTier });
+    if (existing) existing.layers = [...existing.layers, layer];
+    else byKey.set(name, { name, layers: [layer], keyUrl: layer.keyUrl, freeTier: layer.freeTier });
   }
   return [...byKey.values()];
 });
@@ -87,7 +87,7 @@ const SOURCE_TEXT = {
           <span class="text-ink-400 shrink-0 text-[10px]">{{ row.freeTier }}</span>
         </div>
 
-        <p class="text-ink-400 mt-1 text-[11px]">Unlocks {{ row.providers.map((p) => p.label).join(", ") }}</p>
+        <p class="text-ink-400 mt-1 text-[11px]">Unlocks {{ row.layers.map((p) => p.label).join(", ") }}</p>
 
         <div class="mt-2 flex items-center gap-1.5">
           <input

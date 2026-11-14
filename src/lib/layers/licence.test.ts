@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { licenceInfo, LICENCE_TIERS } from "./licence";
-import { PROVIDERS } from "./registry";
+import { LAYERS } from "./registry";
 
 describe("LICENCE_TIERS", () => {
   it("gives every tier a one-word label and an explanation", () => {
@@ -13,7 +13,7 @@ describe("LICENCE_TIERS", () => {
   });
 
   it("covers every tier used in the registry", () => {
-    for (const provider of PROVIDERS) {
+    for (const provider of LAYERS) {
       expect(licenceInfo(provider.licence.tier), provider.id).toBeDefined();
     }
   });
@@ -39,27 +39,27 @@ describe("LICENCE_TIERS", () => {
 
 describe("registry licences", () => {
   it("marks Sentinel-2 cloudless non-commercial, which is its actual licence", () => {
-    const eox = PROVIDERS.find((p) => p.id === "eox.s2cloudless")!;
+    const eox = LAYERS.find((p) => p.id === "eox.s2cloudless")!;
     expect(eox.licence.tier).toBe("restricted");
     expect(eox.licence.note).toMatch(/CC BY-NC-SA/i);
   });
 
   it("flags the keyless Esri endpoints as terms-restricted", () => {
     for (const id of ["esri.imagery", "esri.clarity", "esri.wayback"]) {
-      expect(PROVIDERS.find((p) => p.id === id)!.licence.tier, id).toBe("terms");
+      expect(LAYERS.find((p) => p.id === id)!.licence.tier, id).toBe("terms");
     }
   });
 
   it("marks the keyed ArcGIS route as properly licensed, unlike the keyless ones", () => {
-    expect(PROVIDERS.find((p) => p.id === "arcgis.imagery")!.licence.tier).toBe("licensed");
+    expect(LAYERS.find((p) => p.id === "arcgis.imagery")!.licence.tier).toBe("licensed");
   });
 
   it("marks VersaTiles open, since it is the one commercially safe keyless layer", () => {
-    expect(PROVIDERS.find((p) => p.id === "versatiles.satellite")!.licence.tier).toBe("open");
+    expect(LAYERS.find((p) => p.id === "versatiles.satellite")!.licence.tier).toBe("open");
   });
 
   it("warns that Mapbox bills per tile through MapLibre", () => {
-    const mapbox = PROVIDERS.find((p) => p.id === "mapbox.satellite")!;
+    const mapbox = LAYERS.find((p) => p.id === "mapbox.satellite")!;
     expect(mapbox.licence.tier).toBe("metered");
     expect(mapbox.licence.note).toMatch(/bill/i);
   });

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import BasemapPicker from "@/components/BasemapPicker.vue";
 import BlinkControl from "@/components/BlinkControl.vue";
+import LayerPicker from "@/components/LayerPicker.vue";
 import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
@@ -18,8 +18,8 @@ import { clipInsetFor, paneSide } from "@/lib/swipe";
  * across a 2 -> 4 -> 2 round trip.
  *
  * Two traps to avoid:
- *   - Do NOT key on provider id. That would tear down and rebuild a WebGL context on every
- *     basemap change: the most expensive possible way to do the cheapest operation.
+ *   - Do NOT key on Layer id. That would tear down and rebuild a WebGL context on every
+ *     Layer change: the most expensive possible way to do the cheapest operation.
  *   - Do NOT split this into separate grid and stacked components each owning their own
  *     v-for. That is the obvious structure and it silently destroys every map on each mode
  *     switch.
@@ -57,7 +57,7 @@ function paneStyle(index: number) {
         <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
         <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="sideFor(index) === 'left' ? 'justify-start' : 'justify-end'">
           <div class="pointer-events-auto">
-            <BasemapPicker :index="index" :layer="pane" :align="sideFor(index)" @update="setPaneLayer(index, $event)" />
+            <LayerPicker :index="index" :layer="pane" :align="sideFor(index)" @update="setPaneLayer(index, $event)" />
           </div>
         </div>
       </div>

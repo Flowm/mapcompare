@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
+import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
-import { useClock } from "@/composables/useClock";
 import { useLayerPanel } from "@/composables/useLayerPanel";
-import { groupByOperator, providerStatuses } from "@/lib/providers/availability";
-import { licenceInfo } from "@/lib/providers/licence";
-import { getProvider, PROVIDERS } from "@/lib/providers/registry";
-import type { ApiKeyName, Provider } from "@/lib/providers/types";
-import { resolveVariant, variantValues } from "@/lib/providers/variants";
+import {
+  CADENCE_LABELS,
+  CATEGORY_LABELS,
+  type GroupBy,
+  groupLayers,
+  isFiltering,
+  type LayerFilter,
+  layerStatuses,
+  matchesFilter,
+  NO_FILTER,
+  ORBIT_LABELS,
+  providerLabel,
+} from "@/lib/layers/availability";
+import { licenceInfo } from "@/lib/layers/licence";
+import { getLayer, LAYERS } from "@/lib/layers/registry";
+import { type Cadence, cadenceOf } from "@/lib/layers/time";
+import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type ProviderId } from "@/lib/layers/types";
 import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
@@ -34,56 +46,93 @@ const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }
 
 const { panes, setPaneLayer, swapPanes } = useAppState();
 const { keys } = useApiKeys();
-const { now } = useClock();
-const { activePane, closePanel, focusPane } = useLayerPanel();
+const { activePane, groupBy, closePanel, focusPane } = useLayerPanel();
 
-const query = ref("");
+/**
+ * Not persisted, unlike the grouping: a filter left on from yesterday would quietly hide Layers
+ * from someone who has forgotten setting it, and finding Layers is what this list is for.
+ */
+const filter = ref<LayerFilter>({ ...NO_FILTER });
 
-const statuses = computed(() => providerStatuses(PROVIDERS, keys.value));
+const statuses = computed(() => layerStatuses(LAYERS, keys.value));
 const gatedCount = computed(() => statuses.value.filter((s) => !s.enabled).length);
+const groups = computed(() =>
+  groupLayers(
+    statuses.value.filter((s) => matchesFilter(s.layer, filter.value)),
+    groupBy.value,
+  ),
+);
 
-const groups = computed(() => {
-  const term = query.value.trim().toLowerCase();
-  const matching = term === "" ? statuses.value : statuses.value.filter((s) => `${s.provider.label} ${s.provider.operator} ${s.provider.note}`.toLowerCase().includes(term));
-  return groupByOperator(matching);
-});
+/** Only Providers that have a Layer here, in catalogue order. */
+const providerOptions = computed(() => [...new Map(LAYERS.map((l) => [l.provider, providerLabel(l)]))].map(([key, label]) => ({ key, label })));
+
+const facets = {
+  categories: Object.entries(CATEGORY_LABELS) as [Category, string][],
+  orbits: Object.entries(ORBIT_LABELS) as [Orbit, string][],
+  // Only the Cadences some Layer has: a "Monthly" chip that can only ever empty the list is noise.
+  cadences: (Object.entries(CADENCE_LABELS) as [Cadence, string][]).filter(([cadence]) => LAYERS.some((l) => cadenceOf(l.time) === cadence)),
+};
+
+function toggle<K extends "categories" | "orbits" | "cadences">(facet: K, value: LayerFilter[K][number]) {
+  const current = filter.value[facet] as readonly string[];
+  const nextValues = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+  filter.value = { ...filter.value, [facet]: nextValues };
+}
+
+function pickProvider(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  // The options are built from the registry, so the value is always one of its Provider ids.
+  filter.value = { ...filter.value, providers: value === "" ? [] : [value as ProviderId] };
+}
+
+function setText(event: Event) {
+  filter.value = { ...filter.value, text: (event.target as HTMLInputElement).value };
+}
+
+function setGroupBy(value: GroupBy) {
+  groupBy.value = value;
+}
 
 /** `activePane` outlives the pane it pointed at when the mode shrinks the deck. */
 const target = computed(() => Math.min(activePane.value, panes.value.length - 1));
 
-/** Which panes show a given layer — the badges that make a four-up deck legible. */
-function panesUsing(providerId: string): number[] {
-  return panes.value.flatMap((pane, index) => (pane.providerId === providerId ? [index] : []));
+/** Which panes show a given Layer — the badges that make a four-up deck legible. */
+function panesUsing(layerId: string): number[] {
+  return panes.value.flatMap((pane, index) => (pane.layerId === layerId ? [index] : []));
 }
+
+/** Each pane with its Layer looked up once, rather than once per binding in the template. */
+const paneRows = computed(() =>
+  panes.value.map((pane, index) => {
+    const layer = getLayer(pane.layerId);
+    return { pane, index, layer, licence: layer ? licenceInfo(layer.licence.tier) : undefined };
+  }),
+);
 
 function otherPanes(index: number): number[] {
   return panes.value.map((_, i) => i).filter((i) => i !== index);
 }
 
-function variantsFor(index: number) {
-  const provider = getProvider(panes.value[index]?.providerId ?? "");
-  return provider?.variant ? variantValues(provider.variant) : [];
+function pickTime(index: number, time: string | undefined) {
+  const layerId = panes.value[index]!.layerId;
+  setPaneLayer(index, paneLayer(layerId, time));
 }
 
-function currentVariant(index: number): string {
-  const provider = getProvider(panes.value[index]?.providerId ?? "");
-  return provider?.variant ? resolveVariant(provider.variant, panes.value[index]?.variant, now.value) : "";
-}
-
-function pickVariant(index: number, event: Event) {
-  setPaneLayer(index, { providerId: panes.value[index]!.providerId, variant: (event.target as HTMLSelectElement).value });
-}
-
-/** Copies a pane's whole layer, vintage included: the point is an identical second view. */
+/** Copies a pane's whole Layer, Time included: the point is an identical second view. */
 function copyTo(from: number, to: number) {
   const source = panes.value[from];
   if (!source) return;
-  setPaneLayer(to, { providerId: source.providerId, variant: source.variant });
+  setPaneLayer(to, { ...source });
 }
 
-function assign(provider: Provider) {
-  setPaneLayer(target.value, { providerId: provider.id });
+function assign(layer: Layer) {
+  setPaneLayer(target.value, { layerId: layer.id });
 }
+
+const chip = (on: boolean) =>
+  on
+    ? "border-accent/70 bg-accent/15 text-ink-50 rounded border px-1.5 py-0.5 text-[10px]"
+    : "border-ink-700 text-ink-400 hover:text-ink-50 rounded border px-1.5 py-0.5 text-[10px]";
 </script>
 
 <template>
@@ -99,25 +148,17 @@ function assign(provider: Provider) {
         <button v-if="panes.length === 2" type="button" class="text-ink-400 hover:text-ink-50 text-[10px]" title="Swap the two panes" @click="swapPanes(0, 1)">swap ⇅</button>
       </div>
 
-      <div v-for="(pane, index) in panes" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-accent/15' : ''">
+      <div v-for="{ pane, index, layer, licence } in paneRows" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-accent/15' : ''">
         <button type="button" class="flex w-full items-center gap-1.5 text-left" :aria-pressed="index === target" @click="focusPane(index)">
           <span class="rounded px-1 font-mono text-[10px]" :class="index === target ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
-          <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ getProvider(pane.providerId)?.label ?? pane.providerId }}</span>
-          <span v-if="getProvider(pane.providerId)" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(getProvider(pane.providerId)!.licence.tier).severity].text">
-            {{ licenceInfo(getProvider(pane.providerId)!.licence.tier).label }}
+          <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
+          <span v-if="licence" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licence.severity].text">
+            {{ licence.label }}
           </span>
         </button>
 
-        <div v-if="variantsFor(index).length > 0 || panes.length > 1" class="mt-0.5 flex items-center gap-1 pl-5">
-          <select
-            v-if="variantsFor(index).length > 0"
-            :value="currentVariant(index)"
-            :aria-label="`Vintage for pane ${index + 1}`"
-            class="border-ink-700 bg-ink-900 text-ink-50 focus:border-accent rounded border px-1 py-0.5 font-mono text-[10px] focus:outline-none"
-            @change="pickVariant(index, $event)"
-          >
-            <option v-for="value in variantsFor(index)" :key="value.value" :value="value.value">{{ value.label }}</option>
-          </select>
+        <div v-if="layer?.time || panes.length > 1" class="mt-0.5 flex flex-wrap items-center gap-1 pl-5">
+          <TimeControl v-if="layer?.time" dense :layer="layer" :time="pane.time" @update="pickTime(index, $event)" />
 
           <button
             v-for="other in otherPanes(index)"
@@ -133,50 +174,122 @@ function assign(provider: Provider) {
       </div>
     </div>
 
-    <div class="shrink-0 p-1.5">
+    <div class="border-ink-800 shrink-0 space-y-1 border-b p-1.5">
       <input
-        v-model="query"
+        :value="filter.text"
         type="search"
         placeholder="Filter layers…"
         class="bg-ink-900 text-ink-50 placeholder:text-ink-600 border-ink-700 focus:border-accent w-full rounded border px-2 py-1 text-xs focus:outline-none"
+        @input="setText"
       />
-      <p class="text-ink-600 mt-1 px-0.5 text-[10px]">Clicking a layer sets pane {{ target + 1 }}.</p>
+      <!-- Facets. Within a row the chips are alternatives; across rows all must hold. -->
+      <div class="flex flex-wrap gap-1" role="group" aria-label="Category">
+        <button
+          v-for="[value, label] in facets.categories"
+          :key="value"
+          type="button"
+          :class="chip(filter.categories.includes(value))"
+          :aria-pressed="filter.categories.includes(value)"
+          @click="toggle('categories', value)"
+        >
+          {{ label }}
+        </button>
+        <button
+          v-for="[value, label] in facets.orbits"
+          :key="value"
+          type="button"
+          :class="chip(filter.orbits.includes(value))"
+          :aria-pressed="filter.orbits.includes(value)"
+          @click="toggle('orbits', value)"
+        >
+          {{ label }}
+        </button>
+      </div>
+      <div class="flex flex-wrap gap-1" role="group" aria-label="Cadence">
+        <button
+          v-for="[value, label] in facets.cadences"
+          :key="value"
+          type="button"
+          :class="chip(filter.cadences.includes(value))"
+          :aria-pressed="filter.cadences.includes(value)"
+          @click="toggle('cadences', value)"
+        >
+          {{ label }}
+        </button>
+      </div>
+      <div class="flex items-center gap-1">
+        <select
+          :value="filter.providers[0] ?? ''"
+          aria-label="Provider"
+          class="border-ink-700 bg-ink-900 text-ink-200 focus:border-accent min-w-0 flex-1 rounded border px-1 py-0.5 text-[10px] focus:outline-none"
+          @change="pickProvider"
+        >
+          <option value="">All providers</option>
+          <option v-for="option in providerOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+        </select>
+        <div class="border-ink-700 flex shrink-0 items-center rounded border p-px text-[10px]" role="group" aria-label="Group by">
+          <button
+            type="button"
+            class="rounded px-1.5 py-px"
+            :class="groupBy === 'provider' ? 'bg-ink-700 text-ink-50' : 'text-ink-400 hover:text-ink-50'"
+            :aria-pressed="groupBy === 'provider'"
+            @click="setGroupBy('provider')"
+          >
+            by provider
+          </button>
+          <button
+            type="button"
+            class="rounded px-1.5 py-px"
+            :class="groupBy === 'category' ? 'bg-ink-700 text-ink-50' : 'text-ink-400 hover:text-ink-50'"
+            :aria-pressed="groupBy === 'category'"
+            @click="setGroupBy('category')"
+          >
+            by type
+          </button>
+        </div>
+      </div>
+      <p class="text-ink-600 flex justify-between px-0.5 text-[10px]">
+        <span>Clicking a layer sets pane {{ target + 1 }}.</span>
+        <button v-if="isFiltering(filter)" type="button" class="text-ink-400 hover:text-ink-50" @click="filter = { ...NO_FILTER }">clear filters</button>
+      </p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto pb-2">
-      <div v-for="group in groups" :key="group.operator">
-        <p class="bg-ink-900/95 text-ink-400 sticky top-0 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.operator }}</p>
+      <div v-for="group in groups" :key="group.key">
+        <p class="bg-ink-900/95 text-ink-400 sticky top-0 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.label }}</p>
 
         <!-- Gated layers stay listed, greyed. Hiding them here would remove the discovery this app
              exists for: knowing a layer exists, and what it would cost, is most of the value. The
              per-pane pickers can afford to hide them precisely because this list does not. -->
         <button
           v-for="entry in group.entries"
-          :key="entry.provider.id"
+          :key="entry.layer.id"
           type="button"
           class="hover:bg-ink-800 block w-full px-2.5 py-1.5 text-left"
-          :class="[panes[target]?.providerId === entry.provider.id ? 'bg-accent/10' : '', entry.enabled ? '' : 'opacity-55']"
+          :class="[panes[target]?.layerId === entry.layer.id ? 'bg-accent/10' : '', entry.enabled ? '' : 'opacity-55']"
           :title="entry.enabled ? undefined : entry.disabled!.message"
-          @click="entry.enabled ? assign(entry.provider) : emit('open-keys', entry.disabled!.key)"
+          @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
         >
           <span class="flex items-center gap-1.5">
-            <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].dot" />
-            <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.provider.label }}</span>
-            <span v-for="paneIndex in panesUsing(entry.provider.id)" :key="paneIndex" class="bg-accent text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
+            <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot" />
+            <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
+            <span v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" class="bg-accent text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
               {{ paneIndex + 1 }}
             </span>
             <span v-if="entry.disabled" class="border-ink-600 text-ink-200 shrink-0 rounded border px-1 text-[10px]">key ↗</span>
           </span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2">
-            <span class="text-ink-400 line-clamp-2 text-[11px] leading-snug">{{ entry.provider.note }}</span>
-            <span class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(entry.provider.licence.tier).severity].text">{{
-              licenceInfo(entry.provider.licence.tier).label
+            <span class="text-ink-400 line-clamp-2 text-[11px] leading-snug"
+              ><span v-if="groupBy === 'category'" class="text-ink-200">{{ providerLabel(entry.layer) }} · </span>{{ entry.layer.note }}</span
+            >
+            <span class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].text">{{
+              licenceInfo(entry.layer.licence.tier).label
             }}</span>
           </span>
         </button>
       </div>
 
-      <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches “{{ query }}”.</p>
+      <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches these filters.</p>
     </div>
 
     <!-- Keys and sources belong to the catalogue, not to the app header: one is why some rows above

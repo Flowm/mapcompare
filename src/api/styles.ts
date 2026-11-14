@@ -1,6 +1,6 @@
 import type { StyleSpecification } from "maplibre-gl";
 
-import { labelOverlayStyleUrl } from "@/lib/providers/registry";
+import { labelOverlayStyleUrl } from "@/lib/layers/registry";
 
 /**
  * Fetching and caching third-party style.json documents.

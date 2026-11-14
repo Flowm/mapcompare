@@ -2,7 +2,7 @@
 import { computed } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
-import { getProvider } from "@/lib/providers/registry";
+import { getLayer } from "@/lib/layers/registry";
 
 /**
  * Blink mode's only visible affordance.
@@ -23,7 +23,7 @@ const shownIndex = computed(() => (blinkTopVisible.value ? 0 : 1));
 function label(index: number): string {
   const pane = panes.value[index];
   if (!pane) return "—";
-  return getProvider(pane.providerId)?.label ?? pane.providerId;
+  return getLayer(pane.layerId)?.label ?? pane.layerId;
 }
 </script>
 
