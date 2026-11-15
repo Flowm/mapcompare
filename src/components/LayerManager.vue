@@ -40,13 +40,16 @@ import { SEVERITY_CLASSES } from "@/lib/severity";
  *
  * It is closable, and that only works because the pickers do the everyday job on their own. With
  * the panel shut the app is still fully usable and the map gets the width back.
+ *
+ * This is the content only. App.vue puts it in a side column on desktop and in a bottom drawer on a
+ * phone, so neither shell is baked in here.
  */
 
 const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }>();
 
 const { panes, setPaneLayer, swapPanes } = useAppState();
 const { keys } = useApiKeys();
-const { activePane, groupBy, closePanel, focusPane } = useLayerPanel();
+const { activePane, groupBy, focusPane } = useLayerPanel();
 
 /**
  * Not persisted, unlike the grouping: a filter left on from yesterday would quietly hide Layers
@@ -79,14 +82,18 @@ function toggle<K extends "categories" | "orbits" | "cadences">(facet: K, value:
   filter.value = { ...filter.value, [facet]: nextValues };
 }
 
-function pickProvider(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
+/** A select item cannot carry an empty value, so "every provider" needs a name of its own. */
+const ALL_PROVIDERS = "all";
+
+const providerItems = computed(() => [{ label: "All providers", value: ALL_PROVIDERS }, ...providerOptions.value.map(({ key, label }) => ({ label, value: key }))]);
+
+function pickProvider(value: unknown) {
   // The options are built from the registry, so the value is always one of its Provider ids.
-  filter.value = { ...filter.value, providers: value === "" ? [] : [value as ProviderId] };
+  filter.value = { ...filter.value, providers: value === ALL_PROVIDERS || typeof value !== "string" ? [] : [value as ProviderId] };
 }
 
-function setText(event: Event) {
-  filter.value = { ...filter.value, text: (event.target as HTMLInputElement).value };
+function setText(value: string | number | null | undefined) {
+  filter.value = { ...filter.value, text: String(value ?? "") };
 }
 
 function setGroupBy(value: GroupBy) {
@@ -129,134 +136,111 @@ function assign(layer: Layer) {
   setPaneLayer(target.value, { layerId: layer.id });
 }
 
-const chip = (on: boolean) =>
-  on
-    ? "border-primary/70 bg-primary/15 text-ink-50 rounded border px-1.5 py-0.5 text-[10px]"
-    : "border-ink-700 text-ink-400 hover:text-ink-50 rounded border px-1.5 py-0.5 text-[10px]";
+/** All three facet rows as one list, so the template renders a chip one way. */
+const facetChips = computed(() => [
+  ...facets.categories.map(([value, label]) => ({ facet: "categories" as const, value, label, on: filter.value.categories.includes(value) })),
+  ...facets.orbits.map(([value, label]) => ({ facet: "orbits" as const, value, label, on: filter.value.orbits.includes(value) })),
+  ...facets.cadences.map(([value, label]) => ({ facet: "cadences" as const, value, label, on: filter.value.cadences.includes(value) })),
+]);
+
+function toggleChip(chip: (typeof facetChips.value)[number]) {
+  if (chip.facet === "categories") toggle("categories", chip.value);
+  else if (chip.facet === "orbits") toggle("orbits", chip.value);
+  else toggle("cadences", chip.value);
+}
 </script>
 
 <template>
-  <aside class="border-ink-700 bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
-    <div class="border-ink-800 flex shrink-0 items-center gap-1 border-b px-2.5 py-1.5">
-      <h2 class="text-ink-200 flex-1 text-xs font-medium">Layers</h2>
-      <button type="button" class="text-ink-400 hover:text-ink-50 rounded px-1 text-xs" title="Hide the panel — each pane keeps its own picker" @click="closePanel">×</button>
-    </div>
-
-    <div class="border-ink-800 shrink-0 border-b p-1.5">
+  <div class="flex min-h-0 flex-1 flex-col">
+    <div class="border-default shrink-0 border-b p-1.5">
       <div class="flex items-center justify-between px-1 pb-1">
-        <span class="text-ink-400 text-[10px] font-semibold tracking-wide uppercase">Panes</span>
-        <button v-if="panes.length === 2" type="button" class="text-ink-400 hover:text-ink-50 text-[10px]" title="Swap the two panes" @click="swapPanes(0, 1)">swap ⇅</button>
+        <span class="text-muted text-[10px] font-semibold tracking-wide uppercase">Panes</span>
+        <UButton v-if="panes.length === 2" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-up-down" label="swap" class="text-[10px]" @click="swapPanes(0, 1)" />
       </div>
 
       <div v-for="{ pane, index, layer, licence } in paneRows" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-primary/15' : ''">
-        <button type="button" class="flex w-full items-center gap-1.5 text-left" :aria-pressed="index === target" @click="focusPane(index)">
-          <span class="rounded px-1 font-mono text-[10px]" :class="index === target ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
-          <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
+        <button type="button" class="flex w-full items-center gap-1.5 text-left pointer-coarse:py-1.5" :aria-pressed="index === target" @click="focusPane(index)">
+          <UBadge size="sm" :color="index === target ? 'primary' : 'neutral'" :variant="index === target ? 'solid' : 'subtle'" :label="String(index + 1)" class="font-mono" />
+          <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
           <span v-if="licence" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licence.severity].text">
             {{ licence.label }}
           </span>
         </button>
 
-        <div v-if="layer?.time || panes.length > 1" class="mt-0.5 flex flex-wrap items-center gap-1 pl-5">
+        <div v-if="layer?.time || panes.length > 1" class="mt-1 flex flex-wrap items-center gap-1 pl-6">
           <TimeControl v-if="layer?.time" dense :layer="layer" :time="pane.time" @update="pickTime(index, $event)" />
 
-          <button
-            v-for="other in otherPanes(index)"
-            :key="other"
-            type="button"
-            class="border-ink-700 text-ink-400 hover:text-ink-50 hover:border-ink-500 rounded border px-1 py-0.5 font-mono text-[10px]"
-            :title="`Copy this layer onto pane ${other + 1}`"
-            @click="copyTo(index, other)"
-          >
-            →{{ other + 1 }}
-          </button>
+          <UTooltip v-for="other in otherPanes(index)" :key="other" :text="`Copy this layer onto pane ${other + 1}`">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="outline"
+              :label="`→${other + 1}`"
+              class="font-mono text-[10px]"
+              :aria-label="`Copy this layer onto pane ${other + 1}`"
+              @click="copyTo(index, other)"
+            />
+          </UTooltip>
         </div>
       </div>
     </div>
 
-    <div class="border-ink-800 shrink-0 space-y-1 border-b p-1.5">
-      <input
-        :value="filter.text"
-        type="search"
-        placeholder="Filter layers…"
-        class="bg-ink-900 text-ink-50 placeholder:text-ink-600 border-ink-700 focus:border-primary w-full rounded border px-2 py-1 text-xs focus:outline-none"
-        @input="setText"
-      />
-      <!-- Facets. Within a row the chips are alternatives; across rows all must hold. -->
-      <div class="flex flex-wrap gap-1" role="group" aria-label="Category">
-        <button
-          v-for="[value, label] in facets.categories"
-          :key="value"
-          type="button"
-          :class="chip(filter.categories.includes(value))"
-          :aria-pressed="filter.categories.includes(value)"
-          @click="toggle('categories', value)"
-        >
-          {{ label }}
-        </button>
-        <button
-          v-for="[value, label] in facets.orbits"
-          :key="value"
-          type="button"
-          :class="chip(filter.orbits.includes(value))"
-          :aria-pressed="filter.orbits.includes(value)"
-          @click="toggle('orbits', value)"
-        >
-          {{ label }}
-        </button>
+    <div class="border-default shrink-0 space-y-1.5 border-b p-1.5">
+      <UInput :model-value="filter.text" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="w-full" @update:model-value="setText" />
+
+      <!-- Facets. Within a facet the chips are alternatives; across facets all must hold. -->
+      <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category, orbit and cadence">
+        <UButton
+          v-for="chip in facetChips"
+          :key="`${chip.facet}:${chip.value}`"
+          size="xs"
+          :color="chip.on ? 'primary' : 'neutral'"
+          :variant="chip.on ? 'soft' : 'outline'"
+          :label="chip.label"
+          class="px-1.5 py-0.5 text-[10px] pointer-coarse:px-2.5 pointer-coarse:py-1.5"
+          :aria-pressed="chip.on"
+          @click="toggleChip(chip)"
+        />
       </div>
-      <div class="flex flex-wrap gap-1" role="group" aria-label="Cadence">
-        <button
-          v-for="[value, label] in facets.cadences"
-          :key="value"
-          type="button"
-          :class="chip(filter.cadences.includes(value))"
-          :aria-pressed="filter.cadences.includes(value)"
-          @click="toggle('cadences', value)"
-        >
-          {{ label }}
-        </button>
-      </div>
+
       <div class="flex items-center gap-1">
-        <select
-          :value="filter.providers[0] ?? ''"
+        <USelect
+          :model-value="filter.providers[0] ?? ALL_PROVIDERS"
+          :items="providerItems"
+          size="xs"
           aria-label="Provider"
-          class="border-ink-700 bg-ink-900 text-ink-200 focus:border-primary min-w-0 flex-1 rounded border px-1 py-0.5 text-[10px] focus:outline-none"
-          @change="pickProvider"
-        >
-          <option value="">All providers</option>
-          <option v-for="option in providerOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
-        </select>
-        <div class="border-ink-700 flex shrink-0 items-center rounded border p-px text-[10px]" role="group" aria-label="Group by">
-          <button
-            type="button"
-            class="rounded px-1.5 py-px"
-            :class="groupBy === 'provider' ? 'bg-ink-700 text-ink-50' : 'text-ink-400 hover:text-ink-50'"
+          class="min-w-0 flex-1"
+          @update:model-value="pickProvider"
+        />
+        <UFieldGroup size="xs" aria-label="Group by">
+          <UButton
+            label="by provider"
+            :color="groupBy === 'provider' ? 'primary' : 'neutral'"
+            :variant="groupBy === 'provider' ? 'soft' : 'outline'"
+            class="text-[10px]"
             :aria-pressed="groupBy === 'provider'"
             @click="setGroupBy('provider')"
-          >
-            by provider
-          </button>
-          <button
-            type="button"
-            class="rounded px-1.5 py-px"
-            :class="groupBy === 'category' ? 'bg-ink-700 text-ink-50' : 'text-ink-400 hover:text-ink-50'"
+          />
+          <UButton
+            label="by type"
+            :color="groupBy === 'category' ? 'primary' : 'neutral'"
+            :variant="groupBy === 'category' ? 'soft' : 'outline'"
+            class="text-[10px]"
             :aria-pressed="groupBy === 'category'"
             @click="setGroupBy('category')"
-          >
-            by type
-          </button>
-        </div>
+          />
+        </UFieldGroup>
       </div>
-      <p class="text-ink-600 flex justify-between px-0.5 text-[10px]">
-        <span>Clicking a layer sets pane {{ target + 1 }}.</span>
-        <button v-if="isFiltering(filter)" type="button" class="text-ink-400 hover:text-ink-50" @click="filter = { ...NO_FILTER }">clear filters</button>
+
+      <p class="text-dimmed flex items-center justify-between px-0.5 text-[10px]">
+        <span>Choosing a layer sets pane {{ target + 1 }}.</span>
+        <UButton v-if="isFiltering(filter)" size="xs" color="neutral" variant="link" label="clear filters" class="p-0 text-[10px]" @click="filter = { ...NO_FILTER }" />
       </p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto pb-2">
       <div v-for="group in groups" :key="group.key">
-        <p class="bg-ink-900/95 text-ink-400 sticky top-0 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.label }}</p>
+        <p class="bg-ink-900/95 text-muted sticky top-0 z-10 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.label }}</p>
 
         <!-- Gated layers stay listed, greyed. Hiding them here would remove the discovery this app
              exists for: knowing a layer exists, and what it would cost, is most of the value. The
@@ -265,41 +249,40 @@ const chip = (on: boolean) =>
           v-for="entry in group.entries"
           :key="entry.layer.id"
           type="button"
-          class="hover:bg-ink-800 block w-full px-2.5 py-1.5 text-left"
-          :class="[panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : '', entry.enabled ? '' : 'opacity-55']"
-          :title="entry.enabled ? undefined : entry.disabled!.message"
+          class="hover:bg-elevated block w-full px-2.5 py-1.5 text-left pointer-coarse:py-2.5"
+          :class="panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : ''"
           @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
         >
-          <span class="flex items-center gap-1.5">
+          <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
             <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot" />
-            <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            <span v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" class="bg-primary text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
-              {{ paneIndex + 1 }}
-            </span>
-            <span v-if="entry.disabled" class="border-ink-600 text-ink-200 shrink-0 rounded border px-1 text-[10px]">key ↗</span>
+            <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
+            <UBadge v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" />
+            <UBadge v-if="entry.disabled" size="sm" color="neutral" variant="outline" trailing-icon="i-lucide-key-round" label="key" class="shrink-0" />
           </span>
-          <span class="mt-0.5 flex items-baseline justify-between gap-2">
-            <span class="text-ink-400 line-clamp-2 text-[11px] leading-snug"
-              ><span v-if="groupBy === 'category'" class="text-ink-200">{{ providerLabel(entry.layer) }} · </span>{{ entry.layer.note }}</span
+          <span class="mt-0.5 flex items-baseline justify-between gap-2" :class="entry.enabled ? '' : 'opacity-55'">
+            <span class="text-muted line-clamp-2 text-[11px] leading-snug"
+              ><span v-if="groupBy === 'category'" class="text-toned">{{ providerLabel(entry.layer) }} · </span>{{ entry.layer.note }}</span
             >
             <span class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].text">{{
               licenceInfo(entry.layer.licence.tier).label
             }}</span>
           </span>
+          <!-- Said, not hovered: on a phone a title is never seen, and this is why the row is grey. -->
+          <span v-if="entry.disabled" class="text-warning mt-0.5 block text-[10px] leading-snug">{{ entry.disabled.message }}</span>
         </button>
       </div>
 
-      <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches these filters.</p>
+      <p v-if="groups.length === 0" class="text-muted px-2.5 py-3 text-xs">No layer matches these filters.</p>
     </div>
 
     <!-- Keys and sources belong to the catalogue, not to the app header: one is why some rows above
          are greyed out, the other is the long form of the licence word on every row. Pinned, so
          they stay reachable while the list scrolls. -->
-    <div class="border-ink-800 flex shrink-0 items-center gap-1 border-t p-1.5">
-      <button type="button" class="text-ink-200 hover:bg-ink-800 rounded px-2 py-1 text-xs transition-colors" @click="emit('open-keys')">
-        API keys<span v-if="gatedCount > 0" class="text-ink-400 ml-1">{{ gatedCount }}</span>
-      </button>
-      <button type="button" class="text-ink-200 hover:bg-ink-800 rounded px-2 py-1 text-xs transition-colors" @click="emit('open-sources')">Sources &amp; licences</button>
+    <div class="border-default flex shrink-0 items-center gap-1 border-t p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]">
+      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-key-round" @click="emit('open-keys')">
+        API keys<span v-if="gatedCount > 0" class="text-muted">{{ gatedCount }}</span>
+      </UButton>
+      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-book-open" label="Sources &amp; licences" @click="emit('open-sources')" />
     </div>
-  </aside>
+  </div>
 </template>

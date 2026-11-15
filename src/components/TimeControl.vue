@@ -47,53 +47,70 @@ function step(target: number | undefined) {
   if (target !== undefined) emit("update", formatTime(target, precision.value));
 }
 
-function pickDay(event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  if (value === "") return;
+function pickDay(value: string | number | null | undefined) {
+  if (typeof value !== "string" || value === "") return;
   // A new day keeps the time of day, so stepping a GEO pane through dates compares like with like.
   emit("update", shape.value === "slots" ? atSlot(value, (resolved.value && slotOf(resolved.value.time)) ?? "12:00") : value);
 }
 
-function pick(event: Event) {
-  emit("update", (event.target as HTMLSelectElement).value);
+function pick(value: unknown) {
+  if (typeof value === "string") emit("update", value);
 }
 
-const field = computed(() =>
-  props.dense
-    ? "border-ink-700 bg-ink-900 text-ink-50 focus:border-primary rounded border px-1 py-0.5 font-mono text-[10px] focus:outline-none"
-    : "border-ink-600/70 bg-ink-950/85 text-ink-50 focus:border-primary rounded border px-1.5 py-1 font-mono text-xs backdrop-blur focus:outline-none",
-);
-const button = computed(() =>
-  props.dense
-    ? "border-ink-700 text-ink-400 hover:text-ink-50 hover:border-ink-500 rounded border px-1 py-0.5 font-mono text-[10px] disabled:opacity-30 disabled:hover:text-ink-400"
-    : "border-ink-600/70 bg-ink-950/85 text-ink-200 hover:text-ink-50 rounded border px-1.5 py-1 font-mono text-xs backdrop-blur disabled:opacity-30",
-);
+const listItems = computed(() => options.value.map((value) => ({ label: value, value })));
+const slotItems = computed(() => slots.value.map((slot) => ({ label: slotOf(slot), value: slot })));
+
+/**
+ * Over the map the control needs its own backdrop to stay legible on any imagery; in the manager it
+ * sits on the panel and stays small.
+ */
+const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"));
+const fieldUi = computed(() => ({ base: ["font-mono", props.dense ? "text-[10px]" : "", overMap.value].join(" ") }));
 </script>
 
 <template>
-  <div v-if="spec" class="flex items-center gap-0.5" role="group" :aria-label="`${spec.label} for ${layer.label}`">
-    <button type="button" :class="button" :disabled="previous === undefined" :title="`Previous ${spec.label.toLowerCase()}`" @click="step(previous)">◀</button>
+  <UFieldGroup v-if="spec" :size="dense ? 'xs' : 'sm'" :aria-label="`${spec.label} for ${layer.label}`">
+    <UTooltip :text="`Previous ${spec.label.toLowerCase()}`">
+      <UButton
+        icon="i-lucide-chevron-left"
+        color="neutral"
+        variant="outline"
+        :class="overMap"
+        :disabled="previous === undefined"
+        :aria-label="`Previous ${spec.label.toLowerCase()}`"
+        @click="step(previous)"
+      />
+    </UTooltip>
 
-    <select v-if="shape === 'list'" :value="resolved?.time" :aria-label="spec.label" :class="field" @change="pick">
-      <option v-for="value in options" :key="value" :value="value">{{ value }}</option>
-    </select>
+    <USelect v-if="shape === 'list'" :model-value="resolved?.time" :items="listItems" :aria-label="spec.label" :ui="fieldUi" @update:model-value="pick" />
 
     <template v-else>
-      <input type="date" :value="day" :min="bounds.min" :max="bounds.max" :aria-label="`${spec.label} (UTC date)`" :class="field" @change="pickDay" />
-      <select v-if="shape === 'slots'" :value="resolved?.time" :aria-label="`${spec.label} (UTC)`" :class="field" @change="pick">
-        <option v-for="slot in slots" :key="slot" :value="slot">{{ slotOf(slot) }}</option>
-      </select>
+      <!-- Native, not a calendar component: a phone's own date picker is the better one. -->
+      <UInput type="date" :model-value="day" :min="bounds.min" :max="bounds.max" :aria-label="`${spec.label} (UTC date)`" :ui="fieldUi" @update:model-value="pickDay" />
+      <USelect v-if="shape === 'slots'" :model-value="resolved?.time" :items="slotItems" :aria-label="`${spec.label} (UTC)`" :ui="fieldUi" @update:model-value="pick" />
     </template>
 
-    <button type="button" :class="button" :disabled="next === undefined" :title="`Next ${spec.label.toLowerCase()}`" @click="step(next)">▶</button>
-    <button
-      type="button"
-      :class="[button, time === undefined ? 'border-primary/60! text-primary!' : '']"
-      :aria-pressed="time === undefined"
-      title="Always show the newest picture, also in a shared link"
-      @click="emit('update', undefined)"
-    >
-      latest
-    </button>
-  </div>
+    <UTooltip :text="`Next ${spec.label.toLowerCase()}`">
+      <UButton
+        icon="i-lucide-chevron-right"
+        color="neutral"
+        variant="outline"
+        :class="overMap"
+        :disabled="next === undefined"
+        :aria-label="`Next ${spec.label.toLowerCase()}`"
+        @click="step(next)"
+      />
+    </UTooltip>
+    <UTooltip text="Always show the newest picture, also in a shared link">
+      <UButton
+        label="latest"
+        :color="time === undefined ? 'primary' : 'neutral'"
+        variant="outline"
+        class="font-mono"
+        :class="[overMap, dense && 'text-[10px]']"
+        :aria-pressed="time === undefined"
+        @click="emit('update', undefined)"
+      />
+    </UTooltip>
+  </UFieldGroup>
 </template>

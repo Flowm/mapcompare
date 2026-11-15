@@ -19,7 +19,7 @@ import { useViewport } from "@/composables/useViewport";
 import type { ApiKeyName } from "@/lib/layers/types";
 
 const { camera, labels, setLabels, installHistoryListener } = useAppState();
-const { panelOpen, layersOpen, togglePanel } = useLayerPanel();
+const { panelOpen, drawerOpen, layersOpen, togglePanel, closePanel } = useLayerPanel();
 const { isCompact } = useViewport();
 const share = useShare();
 
@@ -98,8 +98,24 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
           <MapDeck />
         </main>
 
-        <LayerManager v-if="panelOpen && !isCompact" @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+        <aside v-if="panelOpen && !isCompact" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
+          <div class="border-default flex shrink-0 items-center gap-1 border-b px-2.5 py-1">
+            <h2 class="text-toned flex-1 text-xs font-medium">Layers</h2>
+            <UTooltip text="Hide the panel — each pane keeps its own picker">
+              <UButton icon="i-lucide-x" size="xs" color="neutral" variant="ghost" aria-label="Hide the layer manager" @click="closePanel" />
+            </UTooltip>
+          </div>
+          <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+        </aside>
       </div>
+
+      <!-- The phone's shell for the same content. Half height first, so the map stays in view while
+           layers are tried; drag up for the whole catalogue. -->
+      <UDrawer v-if="isCompact" v-model:open="drawerOpen" title="Layers" :snap-points="[0.55, 1]" :ui="{ content: 'h-[95dvh]', body: 'flex min-h-0 flex-col p-0 sm:p-0' }">
+        <template #body>
+          <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+        </template>
+      </UDrawer>
 
       <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
       <SourcesDialog v-model:open="sourcesOpen" />
