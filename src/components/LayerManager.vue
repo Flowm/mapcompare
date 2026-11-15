@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LayerManagerActions from "@/components/LayerManagerActions.vue";
 import LayerManagerBody from "@/components/LayerManagerBody.vue";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useViewport } from "@/composables/useViewport";
@@ -20,12 +21,16 @@ const { isCompact } = useViewport();
 
 <template>
   <UDrawer v-if="isCompact" v-model:open="managerOpen" title="Layers" :snap-points="[0.55, 1]" :ui="{ content: 'h-[95dvh]', body: 'flex min-h-0 flex-col p-0 sm:p-0' }">
+    <!-- In the header, not a footer: at half height the drawer's bottom edge is below the screen. -->
+    <template #actions>
+      <LayerManagerActions @open-keys="emit('open-keys')" @open-sources="emit('open-sources')" />
+    </template>
     <template #body>
-      <LayerManagerBody @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" />
+      <LayerManagerBody :footer="false" @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" />
     </template>
   </UDrawer>
 
-  <aside v-else-if="managerOpen" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
+  <aside v-else-if="managerOpen" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l pb-[env(safe-area-inset-bottom)]" aria-label="Layer manager">
     <div class="border-default flex shrink-0 items-center gap-1 border-b px-2.5 py-1">
       <h2 class="text-toned flex-1 text-xs font-medium">Layers</h2>
       <UTooltip text="Hide the layer manager">

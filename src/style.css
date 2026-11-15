@@ -44,7 +44,20 @@
   --ui-border: var(--color-ink-700);
   --ui-border-muted: var(--color-ink-800);
   --ui-border-accented: var(--color-ink-600);
+
+  /* The text steps shift the other way. Each ink step is a shade darker than Nuxt UI's slate, so
+     its defaults (dimmed 500, muted 400) fell below readable contrast on these surfaces at the
+     10-11px the chrome uses. One step up restores the contrast Nuxt UI intends. */
+  --ui-text-dimmed: var(--color-ink-400);
+  --ui-text-muted: var(--color-ink-300);
+  --ui-text-toned: var(--color-ink-200);
+  --ui-text: var(--color-ink-100);
 }
+
+/* Laid out for a phone: a narrow screen, or a phone on its side, which is wide but too short for
+   a side column. Must match COMPACT_QUERY in useViewport.ts, which swaps the components. */
+@custom-variant compact (@media (width < 48rem) or (height < 30rem));
+@custom-variant roomy (@media (width >= 48rem) and (height >= 30rem));
 
 :root {
   color-scheme: dark;

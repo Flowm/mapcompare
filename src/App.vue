@@ -2,6 +2,7 @@
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { computed, ref } from "vue";
 
+import CameraReadout from "@/components/CameraReadout.vue";
 import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
 import LayerManager from "@/components/LayerManager.vue";
@@ -18,7 +19,7 @@ import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useShare } from "@/composables/useShare";
 import type { ApiKeyName } from "@/lib/layers/types";
 
-const { camera, labels, setLabels, installHistoryListener } = useAppState();
+const { labels, setLabels, installHistoryListener } = useAppState();
 const { managerOpen, toggleManager } = useLayerPanel();
 const { share } = useShare();
 
@@ -36,6 +37,9 @@ function openKeys(key?: ApiKeyName) {
   focusKey.value = key;
   keysOpen.value = true;
 }
+
+/** A constant, so the app shell does not hand UApp a new object, and re-render it, on every render. */
+const TOASTER = { position: "bottom-right" } as const;
 
 /** On a phone the header has room for the essentials only; the rest waits behind this menu. */
 const overflowItems = computed<DropdownMenuItem[][]>(() => [
@@ -58,7 +62,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
 </script>
 
 <template>
-  <UApp :toaster="{ position: 'bottom-right' }">
+  <UApp :toaster="TOASTER">
     <div class="bg-ink-950 flex h-dvh flex-col">
       <!-- Below lg the header's buttons keep their icons and give up their words, which screen
            readers still hear. One rule for the whole bar, so a new button cannot forget it. -->
@@ -70,11 +74,10 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
         <LocationSearch />
 
         <div class="ml-auto flex items-center gap-2">
-          <span class="text-muted hidden font-mono text-[11px] tabular-nums md:inline">
-            {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }}
-          </span>
+          <!-- From lg only: between md and lg it squeezed the search and wrapped onto two lines. -->
+          <CameraReadout class="hidden lg:inline" />
 
-          <div class="hidden items-center gap-2 md:flex">
+          <div class="roomy:flex hidden items-center gap-2">
             <ShareButton />
             <LabelToggle />
           </div>
@@ -87,14 +90,16 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
           </UTooltip>
 
           <UDropdownMenu :items="overflowItems" :content="{ align: 'end' }">
-            <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="ghost" aria-label="More" class="md:hidden" />
+            <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="ghost" aria-label="More" class="roomy:hidden" />
           </UDropdownMenu>
         </div>
       </header>
 
-      <div class="flex min-h-0 flex-1">
-        <!-- Insets keep pane chrome — the credits above all — clear of a notch and the home indicator. -->
-        <main class="min-h-0 flex-1 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
+      <!-- Insets keep pane chrome — the credits above all — and the side column clear of a notch and
+           the home indicator. The side insets go on the row, so the column is inset too, and the
+           map does not get an empty gutter between itself and the column. -->
+      <div class="flex min-h-0 flex-1 pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
+        <main class="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
           <MapDeck />
         </main>
 

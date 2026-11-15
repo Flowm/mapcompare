@@ -40,7 +40,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
               <tr v-for="layer in LAYERS" :key="layer.id" class="border-ink-800/60 border-b align-top">
                 <td class="py-2 pr-3">
                   <span class="text-ink-50 font-medium">{{ layer.label }}</span>
-                  <span class="text-ink-600 block">{{ providerLabel(layer) }}</span>
+                  <span class="text-muted block">{{ providerLabel(layer) }}</span>
                 </td>
                 <td class="text-muted py-2 pr-3">{{ coverage(layer.maxzoom, layer.coverageNote) }}</td>
                 <!-- Measured, not documented. Several providers advertise more than they serve. -->
@@ -50,7 +50,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
                     {{ licenceInfo(layer.licence.tier).label }} ↗
                   </a>
                   <span v-else :class="licenceClasses(layer).text">{{ licenceInfo(layer.licence.tier).label }}</span>
-                  <span class="text-ink-600 mt-0.5 block leading-snug">{{ layer.licence.note }}</span>
+                  <span class="text-muted mt-0.5 block leading-snug">{{ layer.licence.note }}</span>
                 </td>
                 <!-- eslint-disable-next-line vue/no-v-html -- sanitized; links must stay clickable -->
                 <td class="credit text-muted py-2 leading-snug" v-html="sanitizeAttributionHtml(describeAttribution(layer))" />
@@ -93,7 +93,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
           </p>
         </div>
 
-        <p class="border-ink-800 text-ink-600 border-t pt-3 font-mono text-[10px]">build {{ BUILD_SHA }} · {{ BUILD_DATE }}</p>
+        <p class="border-ink-800 text-dimmed border-t pt-3 font-mono text-[10px]">build {{ BUILD_SHA }} · {{ BUILD_DATE }}</p>
       </div>
     </template>
   </UModal>

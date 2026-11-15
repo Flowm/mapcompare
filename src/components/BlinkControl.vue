@@ -75,7 +75,7 @@ function label(index: number): string {
        and the credit wrap onto more lines. Centred chrome at the same height as
        the credit would cover it on a narrow window, and painting over a required credit is a
        licensing failure, not a cosmetic one. -->
-  <div class="pointer-events-none absolute inset-x-0 bottom-8 z-20 flex justify-center max-md:bottom-20">
+  <div class="compact:bottom-20 pointer-events-none absolute inset-x-0 bottom-8 z-20 flex justify-center">
     <button
       ref="button"
       type="button"
@@ -87,7 +87,7 @@ function label(index: number): string {
       <span v-for="index in [0, 1]" :key="index" class="flex min-w-0 items-center gap-1.5" :class="index === shownIndex ? '' : 'text-dimmed'">
         <span v-if="index === 1" class="text-muted" aria-hidden="true">⇄</span>
         <span class="rounded px-1 font-mono text-[10px]" :class="index === shownIndex ? 'bg-primary text-ink-950' : 'bg-ink-800 text-muted'">{{ index + 1 }}</span>
-        <span class="max-w-[11rem] truncate max-md:max-w-[6.5rem]">{{ label(index) }}</span>
+        <span class="compact:max-w-[6.5rem] max-w-[11rem] truncate">{{ label(index) }}</span>
       </span>
 
       <!-- Described, not labelled: an aria-label would replace the layer names, which are the point. -->

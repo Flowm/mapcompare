@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
+import LayerManagerActions from "@/components/LayerManagerActions.vue";
 import { pressed } from "@/components/pressed";
 import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
@@ -45,6 +46,7 @@ import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type
  * on a phone, so neither shell is baked in here.
  */
 
+const { footer = true } = defineProps<{ footer?: boolean }>();
 const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }>();
 
 const { panes, setPaneLayer, swapPanes } = useAppState();
@@ -67,7 +69,6 @@ function clearFilters() {
 }
 
 const statuses = computed(() => layerStatuses(LAYERS, keys.value));
-const gatedCount = computed(() => statuses.value.filter((s) => !s.enabled).length);
 const groups = computed(() =>
   groupLayers(
     statuses.value.filter((s) => matchesFilter(s.layer, filter.value)),
@@ -254,12 +255,23 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
           type="button"
           class="hover:bg-elevated block w-full px-2.5 py-1.5 text-left pointer-coarse:py-2.5"
           :class="panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : ''"
+          :aria-current="panes[target]?.layerId === entry.layer.id ? 'true' : undefined"
           @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
         >
           <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
             <span class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(entry.layer).dot" />
             <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            <UBadge v-for="paneIndex in paneUsage.get(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" />
+            <!-- The badges are digits to the eye; a screen reader hears what they mean. -->
+            <span v-if="paneUsage.get(entry.layer.id)" class="sr-only"
+              >, on pane
+              {{
+                paneUsage
+                  .get(entry.layer.id)!
+                  .map((i) => i + 1)
+                  .join(" and ")
+              }}</span
+            >
+            <UBadge v-for="paneIndex in paneUsage.get(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" aria-hidden="true" />
             <UBadge v-if="entry.disabled" size="sm" color="neutral" variant="outline" trailing-icon="i-lucide-key-round" label="key" class="shrink-0" />
           </span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2" :class="entry.enabled ? '' : 'opacity-55'">
@@ -276,14 +288,10 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
       <p v-if="groups.length === 0" class="text-muted px-2.5 py-3 text-xs">No layer matches these filters.</p>
     </div>
 
-    <!-- Keys and sources belong to the catalogue, not to the app header: one is why some rows above
-         are greyed out, the other is the long form of the licence word on every row. Pinned, so
-         they stay reachable while the list scrolls. -->
-    <div class="border-default flex shrink-0 items-center gap-1 border-t p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]">
-      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-key-round" @click="emit('open-keys')">
-        API keys<span v-if="gatedCount > 0" class="text-muted">{{ gatedCount }}</span>
-      </UButton>
-      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-book-open" label="Sources &amp; licences" @click="emit('open-sources')" />
+    <!-- Pinned below the list, so they stay reachable while it scrolls. The drawer shows them in its
+         header instead. -->
+    <div v-if="footer" class="border-default flex shrink-0 items-center gap-1 border-t p-1.5">
+      <LayerManagerActions @open-keys="emit('open-keys')" @open-sources="emit('open-sources')" />
     </div>
   </div>
 </template>

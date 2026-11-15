@@ -10,7 +10,8 @@ and explanations that existed only in `title` attributes, which a touch screen n
 The app's own near-black `ink` scale is Nuxt UI's `neutral`, and the licence tiers map onto its
 `success`, `warning` and `error`. The chrome looks as it did before.
 
-Phones get a compact layout, decided by one breakpoint (`md`, in `useViewport`):
+Phones get a compact layout when the screen is narrower than `md` or shorter than 30rem, so a phone
+on its side counts too (`useViewport`, mirrored by the `compact:` CSS variant):
 
 - **Grid panes follow the deck's shape.** In a portrait deck, two and three panes are equal rows,
   not columns. The deck's own size decides, not the screen's orientation. Panes stay equal-sized,

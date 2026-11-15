@@ -6,6 +6,7 @@ import { computed, ref } from "vue";
 
 import LayerPickerList from "@/components/LayerPickerList.vue";
 import TimeControl from "@/components/TimeControl.vue";
+import { useAppState } from "@/composables/useAppState";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useViewport } from "@/composables/useViewport";
 import { licenceClasses } from "@/lib/layers/licence";
@@ -33,6 +34,7 @@ const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
 const { activePane, openManager, focusPane } = useLayerPanel();
 const { isCompact } = useViewport();
+const { mode } = useAppState();
 
 const open = ref(false);
 const current = computed(() => getLayer(props.layer.layerId));
@@ -93,6 +95,9 @@ function showEverything() {
       </template>
     </component>
 
-    <TimeControl v-if="current?.time" :layer="current" :time="layer.time" @update="pickTime" />
+    <!-- On a narrow screen in swipe mode each side of the seam has about 170px of chrome, and the
+         control needs about 250 that it cannot wrap. Rather than run under the seam, it waits in the
+         layer manager, which has the same control for every pane; the status chip keeps the date. -->
+    <TimeControl v-if="current?.time" :layer="current" :time="layer.time" :class="{ 'max-md:hidden': mode === 'sw' }" @update="pickTime" />
   </div>
 </template>

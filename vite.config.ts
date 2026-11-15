@@ -40,10 +40,15 @@ export default defineConfig({
         colors: { primary: "sky", neutral: "ink", success: "emerald", warning: "amber", error: "red" },
         // A shortcut badge means nothing without a keyboard, wherever it appears.
         kbd: { base: "pointer-coarse:hidden" },
+        // Every drawer opens from the bottom, so its last row must clear the home indicator.
+        drawer: { slots: { container: "pb-[max(--spacing(4),env(safe-area-inset-bottom))]" } },
       },
       // Bundle every icon the app names, .ts data included. An icon the scan misses is
       // fetched from api.iconify.design at runtime, which fails offline and tells a
       // third party which page a visitor is on.
+      // Theme CSS only for the components the app uses, found by their tags: about 40% less CSS.
+      // LayerPicker renders Drawer and Popover through `<component :is>`, which no tag names.
+      experimental: { componentDetection: ["Drawer", "Popover"] },
       icon: { clientBundle: { scan: { globInclude: ["**/*.{vue,ts}"] } } },
     }),
     VitePWA({
