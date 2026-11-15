@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import type { DropdownMenuItem } from "@nuxt/ui";
+import { computed, ref } from "vue";
 
 import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
@@ -13,10 +14,14 @@ import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
+import { useShare } from "@/composables/useShare";
+import { useViewport } from "@/composables/useViewport";
 import type { ApiKeyName } from "@/lib/layers/types";
 
-const { camera, installHistoryListener } = useAppState();
-const { panelOpen, togglePanel } = useLayerPanel();
+const { camera, labels, setLabels, installHistoryListener } = useAppState();
+const { panelOpen, layersOpen, togglePanel } = useLayerPanel();
+const { isCompact } = useViewport();
+const share = useShare();
 
 useKeyboardShortcuts();
 
@@ -32,37 +37,59 @@ function openKeys(key?: ApiKeyName) {
   focusKey.value = key;
   keysOpen.value = true;
 }
+
+/** On a phone the header has room for the essentials only; the rest waits behind this menu. */
+const overflowItems = computed<DropdownMenuItem[][]>(() => [
+  [
+    { label: "Copy link", icon: "i-lucide-link", onSelect: share },
+    { label: "Place labels", icon: "i-lucide-tags", type: "checkbox", checked: labels.value, onUpdateChecked: (checked: boolean) => setLabels(checked) },
+  ],
+  [
+    { label: "API keys", icon: "i-lucide-key-round", onSelect: () => openKeys() },
+    { label: "Sources & licences", icon: "i-lucide-book-open", onSelect: () => (sourcesOpen.value = true) },
+  ],
+]);
 </script>
 
 <template>
   <UApp :toaster="{ position: 'bottom-right' }">
-    <div class="bg-ink-950 flex h-full flex-col">
-      <header class="border-ink-700 flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
-        <h1 class="text-sm font-semibold tracking-tight">map<span class="text-primary">compare</span></h1>
+    <div class="bg-ink-950 flex h-dvh flex-col">
+      <header
+        class="border-default flex shrink-0 items-center gap-2 border-b py-2 pt-[calc(0.5rem+env(safe-area-inset-top))] pr-[calc(0.75rem+env(safe-area-inset-right))] pl-[calc(0.75rem+env(safe-area-inset-left))]"
+      >
+        <h1 class="shrink-0 text-sm font-semibold tracking-tight">map<span class="text-primary">compare</span></h1>
         <ModeSwitcher />
         <LocationSearch />
 
         <div class="ml-auto flex items-center gap-2">
-          <span class="text-ink-400 font-mono text-[11px] tabular-nums">
+          <span class="text-ink-400 hidden font-mono text-[11px] tabular-nums xl:inline">
             {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }}
           </span>
 
-          <ShareButton />
+          <div class="hidden items-center gap-2 md:flex">
+            <ShareButton />
+            <LabelToggle />
+          </div>
 
-          <LabelToggle />
+          <!-- One button, because everything about layers lives behind it: the catalogue, the
+               licence notes, the API keys and the sources table. A side column on desktop, a
+               drawer on a phone; useLayerPanel decides which. -->
+          <UTooltip text="Layer manager">
+            <UButton
+              icon="i-lucide-layers"
+              label="Layers"
+              size="sm"
+              :color="layersOpen ? 'primary' : 'neutral'"
+              :variant="layersOpen ? 'solid' : 'outline'"
+              :aria-pressed="layersOpen"
+              :ui="{ label: 'max-md:hidden' }"
+              @click="togglePanel"
+            />
+          </UTooltip>
 
-          <!-- One button, because everything about layers now lives behind it: the catalogue, the
-             licence notes, the API keys and the sources table. -->
-          <button
-            type="button"
-            class="rounded border px-2 py-1.5 text-xs transition-colors"
-            :class="panelOpen ? 'border-primary/70 bg-primary text-ink-950 font-medium' : 'border-ink-700 bg-ink-900 text-ink-200 hover:bg-ink-800'"
-            :aria-pressed="panelOpen"
-            title="Layer manager"
-            @click="togglePanel"
-          >
-            Layers
-          </button>
+          <UDropdownMenu :items="overflowItems" :content="{ align: 'end' }" class="md:hidden">
+            <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="ghost" aria-label="More" class="md:hidden" />
+          </UDropdownMenu>
         </div>
       </header>
 
@@ -71,7 +98,7 @@ function openKeys(key?: ApiKeyName) {
           <MapDeck />
         </main>
 
-        <LayerManager v-if="panelOpen" @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+        <LayerManager v-if="panelOpen && !isCompact" @open-keys="openKeys" @open-sources="sourcesOpen = true" />
       </div>
 
       <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />

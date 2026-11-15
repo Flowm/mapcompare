@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 
 import type { GroupBy } from "@/lib/layers/availability";
 
+import { useViewport } from "./useViewport";
+
 /**
  * The layer manager's own state: whether it is showing, and which pane it acts on.
  *
@@ -22,24 +24,44 @@ const panelOpen = useLocalStorage("mapcompare:layer-panel", true);
 /** How the catalogue is grouped, in the manager and every picker alike. A viewing preference. */
 const groupBy = useLocalStorage<GroupBy>("mapcompare:group-by", "provider");
 
+/**
+ * The phone's drawer, which is a different surface from the desktop column and so a different
+ * state. Not persisted: `panelOpen` defaults to open, and a drawer restored open would cover the
+ * map before anyone has seen it.
+ */
+const { isCompact } = useViewport();
+
+const drawerOpen = ref(false);
+
+/** Whichever surface this layout shows the manager in. */
+const layersOpen = computed({
+  get: () => (isCompact.value ? drawerOpen.value : panelOpen.value),
+  set: (open: boolean) => {
+    if (isCompact.value) drawerOpen.value = open;
+    else panelOpen.value = open;
+  },
+});
+
 const activePane = ref(0);
 
 export function useLayerPanel() {
   return {
     panelOpen,
+    drawerOpen,
+    layersOpen,
     groupBy,
     activePane: computed(() => activePane.value),
 
     togglePanel() {
-      panelOpen.value = !panelOpen.value;
+      layersOpen.value = !layersOpen.value;
     },
 
     openPanel() {
-      panelOpen.value = true;
+      layersOpen.value = true;
     },
 
     closePanel() {
-      panelOpen.value = false;
+      layersOpen.value = false;
     },
 
     focusPane(index: number) {
