@@ -82,7 +82,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
               :color="layersOpen ? 'primary' : 'neutral'"
               :variant="layersOpen ? 'solid' : 'outline'"
               :aria-pressed="layersOpen"
-              :ui="{ label: 'max-md:hidden' }"
+              :ui="{ label: 'max-lg:sr-only' }"
               @click="togglePanel"
             />
           </UTooltip>
@@ -94,7 +94,8 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
       </header>
 
       <div class="flex min-h-0 flex-1">
-        <main class="min-h-0 flex-1">
+        <!-- Insets keep pane chrome — the credits above all — clear of a notch and the home indicator. -->
+        <main class="min-h-0 flex-1 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
           <MapDeck />
         </main>
 

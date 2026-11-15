@@ -178,7 +178,7 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     aria-label="Search a place or paste coordinates"
     @click="open = true"
   >
-    Search a place or coordinates
+    <span class="truncate">Search a place or coordinates</span>
     <!-- The only advertisement the shortcut gets; without it nobody discovers `/`. -->
     <template #trailing><UKbd value="/" class="ml-auto" /></template>
   </UButton>

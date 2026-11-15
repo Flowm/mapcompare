@@ -24,6 +24,12 @@ const props = defineProps<{
    * credit rather than merely look untidy.
    */
   side?: "left" | "right";
+  /**
+   * Keep the chrome to this pane's half of the deck. In swipe mode the other pane covers the far
+   * half, so chrome reaching past the seam is cut off there, the credit included. Only bites on a
+   * narrow screen, where a credit is wider than half the deck.
+   */
+  half?: boolean;
 }>();
 
 const container = ref<HTMLDivElement>();
@@ -159,7 +165,10 @@ useResizeObserver(container, () => map.value?.resize());
     <!-- Chips and credit share the bottom corner on `side`, beneath the picker MapDeck places at
          the top of the same side. Keeping them together on one side is what guarantees they stay
          inside the visible region when the top pane is clipped. -->
-    <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
+    <div
+      class="pointer-events-none absolute bottom-1 z-10 flex flex-col gap-1"
+      :class="[chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end', half ? 'max-w-[calc(50%-1rem)]' : 'max-w-full']"
+    >
       <div v-if="layerDef" class="pointer-events-auto">
         <PaneStatus :layer="layerDef" :time="appliedTime" :ended="ended" :failed-tiles="failed" />
       </div>

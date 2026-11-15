@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useElementSize } from "@vueuse/core";
 import { computed, ref } from "vue";
 
 import BlinkControl from "@/components/BlinkControl.vue";
@@ -6,7 +7,7 @@ import LayerPicker from "@/components/LayerPicker.vue";
 import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
-import { isStacked, layoutFor } from "@/lib/mode";
+import { aspectOf, isStacked, layoutFor } from "@/lib/mode";
 import { clipInsetFor, paneSide } from "@/lib/swipe";
 
 /**
@@ -29,7 +30,12 @@ const { mode, panes, swipe, blinkTopVisible, setPaneLayer, setSwipe } = useAppSt
 
 const deck = ref<HTMLElement>();
 
-const gridClass = computed(() => layoutFor(mode.value));
+/**
+ * The deck's own shape, not the screen's orientation: a desktop window narrowed beside the layer
+ * manager is tall too, and the panes should tile the space they actually have.
+ */
+const { width, height } = useElementSize(deck);
+const gridClass = computed(() => layoutFor(mode.value, aspectOf(width.value, height.value)));
 
 /** Which side this pane's chrome lives on. `lib/swipe.ts` owns the rule; see `paneSide`. */
 function sideFor(index: number): "left" | "right" {
@@ -52,11 +58,11 @@ function paneStyle(index: number) {
   <div ref="deck" class="relative h-full w-full overflow-hidden">
     <div class="h-full w-full" :class="isStacked(mode) ? 'relative' : `bg-ink-700 grid gap-px ${gridClass}`">
       <div v-for="(pane, index) in panes" :key="index" :class="isStacked(mode) ? 'absolute inset-0' : 'relative min-h-0 min-w-0'" :style="paneStyle(index)">
-        <MapPane :layer="pane" :side="sideFor(index)" />
+        <MapPane :layer="pane" :side="sideFor(index)" :half="mode === 'sw'" />
 
         <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
         <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="sideFor(index) === 'left' ? 'justify-start' : 'justify-end'">
-          <div class="pointer-events-auto">
+          <div class="pointer-events-auto" :class="mode === 'sw' ? 'max-w-[calc(50%-1rem)]' : ''">
             <LayerPicker :index="index" :layer="pane" :align="sideFor(index)" @update="setPaneLayer(index, $event)" />
           </div>
         </div>

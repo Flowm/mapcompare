@@ -26,12 +26,29 @@ const plain = computed(() => parts.value.map((p) => p.replaceAll(/<[^>]*>/g, "")
        pane, which is a licensing failure rather than a cosmetic one. The wordmark is in here with
        the text for exactly the same reason — one block, one side, clipped or visible together. -->
   <div v-if="credit" class="flex max-w-full flex-col gap-1" :class="props.side === 'left' ? 'items-start' : 'items-end'">
-    <div v-if="parts.length > 0" class="bg-ink-950/70 text-ink-200 pointer-events-auto max-w-full truncate rounded px-1.5 py-0.5 text-[10px] backdrop-blur" :title="plain">
-      <span v-for="(part, i) in parts" :key="i" class="attribution">
-        <span v-if="i > 0" aria-hidden="true"> · </span>
-        <!-- eslint-disable-next-line vue/no-v-html -- sanitized above; links must stay clickable -->
-        <span v-html="part" />
-      </span>
+    <div v-if="parts.length > 0" class="flex max-w-full items-center gap-1" :class="props.side === 'left' ? 'flex-row-reverse' : ''">
+      <!-- A truncated credit is complete on hover through `title`. A finger gets this instead, which
+           also keeps the links inside reachable. -->
+      <UPopover :content="{ side: 'top', collisionPadding: 8 }" class="hidden pointer-coarse:inline-flex">
+        <UButton icon="i-lucide-info" size="xs" color="neutral" variant="ghost" class="bg-ink-950/70 pointer-events-auto backdrop-blur" aria-label="Full credit" />
+        <template #content>
+          <p class="text-ink-200 max-w-72 p-3 text-xs leading-relaxed">
+            <span v-for="(part, i) in parts" :key="i" class="attribution">
+              <span v-if="i > 0" aria-hidden="true"> · </span>
+              <!-- eslint-disable-next-line vue/no-v-html -- sanitized above; links must stay clickable -->
+              <span v-html="part" />
+            </span>
+          </p>
+        </template>
+      </UPopover>
+
+      <div class="bg-ink-950/70 text-ink-200 pointer-events-auto min-w-0 truncate rounded px-1.5 py-0.5 text-[10px] backdrop-blur" :title="plain">
+        <span v-for="(part, i) in parts" :key="i" class="attribution">
+          <span v-if="i > 0" aria-hidden="true"> · </span>
+          <!-- eslint-disable-next-line vue/no-v-html -- sanitized above; links must stay clickable -->
+          <span v-html="part" />
+        </span>
+      </div>
     </div>
 
     <!-- Vendor artwork, shown verbatim: no plate, no filter, no size override. Both marks are drawn

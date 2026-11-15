@@ -37,6 +37,9 @@ export function isStacked(mode: Mode): boolean {
   return mode === "sw" || mode === "bl";
 }
 
+/** Whether the deck is wider than it is tall. A phone held upright is the usual `portrait`. */
+export type Aspect = "landscape" | "portrait";
+
 /**
  * The grid tracks a mode implies, for the grid modes only.
  *
@@ -48,15 +51,20 @@ export function isStacked(mode: Mode): boolean {
  * camera, so panes of different sizes show different extents of it — and a comparison between two
  * unequal windows onto the same view is exactly the kind of quiet dishonesty this app exists to
  * avoid.
+ *
+ * In a portrait deck the tracks turn into rows. Three columns on an upright phone are slivers a
+ * few dozen pixels wide; three rows are the same equal windows, just stacked. `g4` is two by two
+ * either way.
  */
-export function layoutFor(mode: Mode): string {
+export function layoutFor(mode: Mode, aspect: Aspect = "landscape"): string {
+  const portrait = aspect === "portrait";
   switch (mode) {
     case "g1":
       return "grid-cols-1 grid-rows-1";
     case "g2":
-      return "grid-cols-2 grid-rows-1";
+      return portrait ? "grid-cols-1 grid-rows-2" : "grid-cols-2 grid-rows-1";
     case "g3":
-      return "grid-cols-3 grid-rows-1";
+      return portrait ? "grid-cols-1 grid-rows-3" : "grid-cols-3 grid-rows-1";
     case "g4":
       return "grid-cols-2 grid-rows-2";
     // Stacked modes are absolutely positioned, not tiled. A single track keeps the wrapper valid
@@ -65,6 +73,11 @@ export function layoutFor(mode: Mode): string {
     case "bl":
       return "grid-cols-1 grid-rows-1";
   }
+}
+
+/** Portrait only when strictly taller than wide, so a square deck keeps the desktop columns. */
+export function aspectOf(width: number, height: number): Aspect {
+  return height > width ? "portrait" : "landscape";
 }
 
 export const MODE_LABELS: Record<Mode, string> = {

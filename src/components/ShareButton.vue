@@ -6,6 +6,6 @@ const share = useShare();
 
 <template>
   <UTooltip text="Copy a link to this exact comparison">
-    <UButton icon="i-lucide-link" label="Share" size="sm" color="neutral" variant="outline" @click="share" />
+    <UButton icon="i-lucide-link" label="Share" size="sm" color="neutral" variant="outline" :ui="{ label: 'max-lg:sr-only' }" @click="share" />
   </UTooltip>
 </template>

@@ -13,6 +13,7 @@ const { labels, setLabels } = useAppState();
       :color="labels ? 'primary' : 'neutral'"
       :variant="labels ? 'solid' : 'outline'"
       :aria-pressed="labels"
+      :ui="{ label: 'max-lg:sr-only' }"
       @click="setLabels(!labels)"
     />
   </UTooltip>
