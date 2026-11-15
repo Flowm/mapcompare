@@ -20,7 +20,7 @@ const LAYER_PREFIX = "ofm-";
 export interface LabelOverlay {
   sourceId: string;
   source: SourceSpecification;
-  /** Symbol layers plus administrative boundaries, re-pointed at `sourceId`. */
+  /** Coastlines, administrative boundaries and symbol layers, all pointed at `sourceId`. */
   layers: LayerSpecification[];
   /** Liberty's font endpoint. Style-level, so it has to be merged before the style loads. */
   glyphs: string;
@@ -38,8 +38,35 @@ export interface LabelOverlay {
  */
 
 /**
+ * Coastlines, drawn as the outline of OpenMapTiles' ocean polygons.
+ *
+ * Liberty has no coastline layer to copy: it shows the coast as the edge of its water fill, and
+ * that fill would paint over the imagery. So the overlay draws only the outline of those polygons.
+ * Only the `ocean` class is used. Lakes, rivers and ponds would put a ring around every pond at
+ * street zoom, and that is cartography, not orientation.
+ *
+ * The line is light so it shows against dark water, and thin so it does not cover the shoreline
+ * it marks. Polygon edges cut at tile borders fall in the tile buffer, which is not drawn, so no
+ * tile grid appears in the line.
+ */
+const COASTLINE_LAYER: LayerSpecification = {
+  id: `${LAYER_PREFIX}coastline`,
+  type: "line",
+  source: OVERLAY_SOURCE_ID,
+  "source-layer": "water",
+  filter: ["==", ["get", "class"], "ocean"],
+  layout: { "line-join": "round", "line-cap": "round" },
+  paint: {
+    "line-color": "hsl(195, 60%, 85%)",
+    "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 6, 0.7],
+    "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 6, 1, 14, 1.75],
+  },
+};
+
+/**
  * Selects the parts of Liberty worth drawing over imagery: every `symbol` layer (place labels,
- * road names, highway shields, POIs, water names, aerodromes) plus the `boundary` line layers.
+ * road names, highway shields, POIs, water names, aerodromes) plus the `boundary` line layers,
+ * with our own coastline added below them.
  *
  * Everything else is deliberately dropped. `background`, `fill`, `raster` and `fill-extrusion`
  * layers would paint over the imagery, which is the one thing we are trying to look at, and the
@@ -51,7 +78,7 @@ export function extractLabelOverlay(liberty: StyleSpecification): LabelOverlay {
   const source = sourceName === undefined ? undefined : liberty.sources[sourceName];
   if (sourceName === undefined || source === undefined) throw new Error("Liberty style has no vector source to build a label overlay from");
 
-  const layers = liberty.layers
+  const copied = liberty.layers
     .filter((layer) => keepForOverlay(layer, sourceName))
     .map((layer) =>
       // Copied onto a fresh object rather than mutated: the fetched Liberty style is cached and
@@ -60,6 +87,8 @@ export function extractLabelOverlay(liberty: StyleSpecification): LabelOverlay {
       // base style using that same name would otherwise bind the overlay to the wrong tiles.
       Object.assign({}, layer, { id: `${LAYER_PREFIX}${layer.id}`, source: OVERLAY_SOURCE_ID }),
     ) as LayerSpecification[];
+  // First, so boundaries and labels draw on top of the coast.
+  const layers = [COASTLINE_LAYER, ...copied];
 
   return {
     sourceId: OVERLAY_SOURCE_ID,

@@ -37,7 +37,8 @@ over the same street. Hence this.
   over and a late satellite is never shown as black
 - **Filter and group the catalogue** by type (basemap, satellite, map), orbit (LEO, GEO),
   cadence and provider
-- **Optional label overlay** from OpenFreeMap, drawn identically over every pane
+- **Optional label overlay** from OpenFreeMap (place names, borders and coastlines), drawn
+  identically over every pane
 - **Licence, time, overzoom and missing-tile chips** per pane, plus a warning when a shared link
   asks for a time the layer no longer has
 - **A layer manager** holding the whole catalogue, the licence notes, the API keys and the sources
