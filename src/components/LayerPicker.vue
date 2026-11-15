@@ -77,10 +77,10 @@ function showEverything() {
         :class="activePane === index ? 'border-primary/70' : 'border-ink-600/70'"
         :aria-label="`Layer for pane ${index + 1}: ${current?.label ?? layer.layerId}`"
       >
-        <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
+        <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-primary text-ink-950' : 'bg-ink-800 text-default'">{{ index + 1 }}</span>
         <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(current).dot" />
         <span class="truncate">{{ current?.label ?? layer.layerId }}</span>
-        <UIcon name="i-lucide-chevron-down" class="text-ink-400 size-3.5 shrink-0" />
+        <UIcon name="i-lucide-chevron-down" class="text-muted size-3.5 shrink-0" />
       </button>
 
       <!-- A drawer's `content` slot would replace its handle and title, so the list goes in its body.

@@ -80,6 +80,16 @@ export function aspectOf(width: number, height: number): Aspect {
   return height > width ? "portrait" : "landscape";
 }
 
+/** The Lucide icon for each mode, in the mode switcher's buttons and its phone menu. */
+export const MODE_ICONS: Record<Mode, string> = {
+  g1: "i-lucide-square",
+  g2: "i-lucide-columns-2",
+  g3: "i-lucide-columns-3",
+  g4: "i-lucide-grid-2x2",
+  sw: "i-lucide-square-split-horizontal",
+  bl: "i-lucide-eye",
+};
+
 /**
  * The key that switches to each mode. One table for the shortcut handler and for the tooltips that
  * advertise it, so a rebound key cannot leave a tooltip naming the old one.

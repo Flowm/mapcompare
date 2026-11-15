@@ -14,18 +14,18 @@ import type { ApiKeyName } from "@/lib/layers/types";
 
 const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }>();
 
-const { columnOpen, drawerOpen, closeManager } = useLayerPanel();
+const { managerOpen, closeManager } = useLayerPanel();
 const { isCompact } = useViewport();
 </script>
 
 <template>
-  <UDrawer v-if="isCompact" v-model:open="drawerOpen" title="Layers" :snap-points="[0.55, 1]" :ui="{ content: 'h-[95dvh]', body: 'flex min-h-0 flex-col p-0 sm:p-0' }">
+  <UDrawer v-if="isCompact" v-model:open="managerOpen" title="Layers" :snap-points="[0.55, 1]" :ui="{ content: 'h-[95dvh]', body: 'flex min-h-0 flex-col p-0 sm:p-0' }">
     <template #body>
       <LayerManagerBody @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" />
     </template>
   </UDrawer>
 
-  <aside v-else-if="columnOpen" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
+  <aside v-else-if="managerOpen" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
     <div class="border-default flex shrink-0 items-center gap-1 border-b px-2.5 py-1">
       <h2 class="text-toned flex-1 text-xs font-medium">Layers</h2>
       <UTooltip text="Hide the layer manager">

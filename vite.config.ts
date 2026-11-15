@@ -38,6 +38,8 @@ export default defineConfig({
         // `ink` is the app's own near-black scale, defined in style.css. The status colours are
         // the -400 shades dark mode uses, matching the licence tiers they replaced.
         colors: { primary: "sky", neutral: "ink", success: "emerald", warning: "amber", error: "red" },
+        // A shortcut badge means nothing without a keyboard, wherever it appears.
+        kbd: { base: "pointer-coarse:hidden" },
       },
       // Bundle every icon the app names, .ts data included. An icon the scan misses is
       // fetched from api.iconify.design at runtime, which fails offline and tells a

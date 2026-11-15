@@ -179,8 +179,8 @@ useResizeObserver(container, () => map.value?.resize());
     <div v-if="resolved.state === 'missing-key'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">{{ resolved.layerLabel }} needs an API key</p>
-        <p class="text-ink-400 mt-2 text-xs leading-relaxed">
-          Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste one under API keys.
+        <p class="text-muted mt-2 text-xs leading-relaxed">
+          Set <code class="text-default font-mono">{{ resolved.key }}</code> in <code class="text-default font-mono">.env.development</code>, or paste one under API keys.
         </p>
         <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-3 inline-block text-xs hover:underline">
           Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗
@@ -191,13 +191,13 @@ useResizeObserver(container, () => map.value?.resize());
     <div v-else-if="resolved.state === 'error'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">Could not load this layer</p>
-        <p class="text-ink-400 mt-2 font-mono text-xs leading-relaxed break-words">{{ resolved.message }}</p>
+        <p class="text-muted mt-2 font-mono text-xs leading-relaxed break-words">{{ resolved.message }}</p>
       </div>
     </div>
 
     <div v-else-if="resolved.state === 'unknown-layer'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
-      <p class="text-ink-400 max-w-xs text-sm">
-        Unknown layer <code class="text-ink-200 font-mono">{{ resolved.layerId }}</code>
+      <p class="text-muted max-w-xs text-sm">
+        Unknown layer <code class="text-default font-mono">{{ resolved.layerId }}</code>
       </p>
     </div>
   </div>

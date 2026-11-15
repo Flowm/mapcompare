@@ -20,7 +20,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
   <UModal v-model:open="open" title="Sources &amp; licences" :fullscreen="isCompact" :ui="{ content: 'sm:max-w-[56rem]' }">
     <template #body>
       <div class="space-y-4">
-        <p class="text-ink-400 text-xs leading-relaxed">
+        <p class="text-muted text-xs leading-relaxed">
           There is no free, keyless, globally high-resolution, commercially usable satellite basemap. Every option below gives up exactly one of those four. That trade-off is what
           this app exists to show.
         </p>
@@ -28,7 +28,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
         <div class="overflow-x-auto">
           <table class="w-full min-w-[46rem] border-collapse text-[11px]">
             <thead>
-              <tr class="border-ink-700 text-ink-400 border-b text-left">
+              <tr class="border-default text-muted border-b text-left">
                 <th class="py-1.5 pr-3 font-medium">Layer</th>
                 <th class="py-1.5 pr-3 font-medium">Coverage &amp; resolution</th>
                 <th class="py-1.5 pr-3 font-medium">Max zoom</th>
@@ -42,9 +42,9 @@ function coverage(maxzoom: number, note: string | undefined): string {
                   <span class="text-ink-50 font-medium">{{ layer.label }}</span>
                   <span class="text-ink-600 block">{{ providerLabel(layer) }}</span>
                 </td>
-                <td class="text-ink-400 py-2 pr-3">{{ coverage(layer.maxzoom, layer.coverageNote) }}</td>
+                <td class="text-muted py-2 pr-3">{{ coverage(layer.maxzoom, layer.coverageNote) }}</td>
                 <!-- Measured, not documented. Several providers advertise more than they serve. -->
-                <td class="text-ink-400 py-2 pr-3 font-mono">z{{ layer.maxzoom }}</td>
+                <td class="text-muted py-2 pr-3 font-mono">z{{ layer.maxzoom }}</td>
                 <td class="py-2 pr-3">
                   <a v-if="layer.licence.url" :href="layer.licence.url" target="_blank" rel="noreferrer noopener" class="hover:underline" :class="licenceClasses(layer).text">
                     {{ licenceInfo(layer.licence.tier).label }} ↗
@@ -53,7 +53,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
                   <span class="text-ink-600 mt-0.5 block leading-snug">{{ layer.licence.note }}</span>
                 </td>
                 <!-- eslint-disable-next-line vue/no-v-html -- sanitized; links must stay clickable -->
-                <td class="credit text-ink-400 py-2 leading-snug" v-html="sanitizeAttributionHtml(describeAttribution(layer))" />
+                <td class="credit text-muted py-2 leading-snug" v-html="sanitizeAttributionHtml(describeAttribution(layer))" />
               </tr>
             </tbody>
           </table>
@@ -64,12 +64,12 @@ function coverage(maxzoom: number, note: string | undefined): string {
           <dl class="mt-1.5 space-y-1 text-[11px] leading-relaxed">
             <div v-for="(info, tier) in LICENCE_TIERS" :key="tier" class="flex gap-2">
               <dt class="w-28 shrink-0" :class="SEVERITY_CLASSES[info.severity].text">{{ info.label }}</dt>
-              <dd class="text-ink-400">{{ info.explanation }}</dd>
+              <dd class="text-muted">{{ info.explanation }}</dd>
             </div>
           </dl>
         </div>
 
-        <div class="text-ink-400 text-[11px] leading-relaxed">
+        <div class="text-muted text-[11px] leading-relaxed">
           <h3 class="text-ink-50 text-xs font-semibold">Coverage gotchas worth knowing</h3>
           <ul class="mt-1 list-inside list-disc space-y-1">
             <li>
@@ -82,7 +82,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
           </ul>
         </div>
 
-        <div class="text-ink-400 text-[11px] leading-relaxed">
+        <div class="text-muted text-[11px] leading-relaxed">
           <h3 class="text-ink-50 text-xs font-semibold">Place search</h3>
           <p class="mt-1">
             Location names come from

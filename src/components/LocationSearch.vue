@@ -143,21 +143,6 @@ function choose(row: Row) {
   open.value = false;
 }
 
-/**
- * Enter with nothing highlighted takes the first row: after typing a place name the next key is
- * Enter, not Down-then-Enter. The palette only selects a highlighted item, and results that arrive
- * after typing come in with none.
- */
-function onEnter(event: KeyboardEvent) {
-  const root = event.currentTarget as HTMLElement;
-  if (root.querySelector("[data-highlighted]")) return;
-  const first = rows.value[0];
-  if (first === undefined) return;
-  event.preventDefault();
-  event.stopPropagation();
-  choose(first);
-}
-
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
   // Otherwise the slash lands in the field it just focused.
@@ -180,30 +165,28 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   >
     <span class="truncate">Search a place or coordinates</span>
     <!-- The only advertisement the shortcut gets; without it nobody discovers `/`. -->
-    <template #trailing><UKbd value="/" class="ml-auto pointer-coarse:hidden" /></template>
+    <template #trailing><UKbd value="/" class="ml-auto" /></template>
   </UButton>
 
   <UModal v-model:open="open" title="Go to" description="Search a place by name, paste a coordinate, or pick a preset." :fullscreen="isCompact" :ui="{ content: 'sm:max-w-xl' }">
     <template #content>
-      <div class="contents" @keydown.enter.capture="onEnter">
-        <UCommandPalette
-          v-model:search-term="query"
-          :groups="groups"
-          :loading="outcome.kind === 'loading'"
-          placeholder="Search a place or paste coordinates"
-          close
-          class="h-full sm:max-h-[70vh]"
-          @update:open="open = $event"
-        >
-          <template #item-trailing="{ item }">
-            <span class="text-muted shrink-0 font-mono text-[10px] tabular-nums">{{ (item as RowItem).tag }}</span>
-          </template>
+      <UCommandPalette
+        v-model:search-term="query"
+        :groups="groups"
+        :loading="outcome.kind === 'loading'"
+        placeholder="Search a place or paste coordinates"
+        close
+        class="h-full sm:max-h-[70vh]"
+        @update:open="open = $event"
+      >
+        <template #item-trailing="{ item }">
+          <span class="text-muted shrink-0 font-mono text-[10px] tabular-nums">{{ (item as RowItem).tag }}</span>
+        </template>
 
-          <template #empty>
-            <p class="text-muted px-3 py-6 text-center text-xs">{{ message ?? "Nothing to show." }}</p>
-          </template>
-        </UCommandPalette>
-      </div>
+        <template #empty>
+          <p class="text-muted px-3 py-6 text-center text-xs">{{ message ?? "Nothing to show." }}</p>
+        </template>
+      </UCommandPalette>
     </template>
   </UModal>
 </template>

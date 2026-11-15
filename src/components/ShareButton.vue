@@ -12,7 +12,6 @@ const { share, copied } = useShare();
       size="sm"
       :color="copied ? 'primary' : 'neutral'"
       variant="outline"
-      :ui="{ label: 'max-lg:sr-only' }"
       @click="share()"
     />
   </UTooltip>

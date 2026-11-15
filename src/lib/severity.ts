@@ -28,7 +28,3 @@ export const SEVERITY_CLASSES: Record<Severity, SeverityClasses> = {
   warn: { color: "warning", dot: "bg-warning", text: "text-warning" },
   bad: { color: "error", dot: "bg-error", text: "text-error" },
 };
-
-export function severityClasses(severity: Severity): SeverityClasses {
-  return SEVERITY_CLASSES[severity];
-}

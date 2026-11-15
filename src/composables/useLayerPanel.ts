@@ -46,8 +46,6 @@ const activePane = ref(0);
 
 export function useLayerPanel() {
   return {
-    columnOpen,
-    drawerOpen,
     managerOpen,
     groupBy,
     activePane: computed(() => activePane.value),

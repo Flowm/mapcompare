@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
+import { pressed } from "@/components/pressed";
 import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
@@ -22,7 +23,6 @@ import { licenceClasses, licenceInfo } from "@/lib/layers/licence";
 import { getLayer, LAYERS } from "@/lib/layers/registry";
 import { type Cadence, cadenceOf } from "@/lib/layers/time";
 import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type ProviderId } from "@/lib/layers/types";
-import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * The whole catalogue, and the whole deck, in one surface.
@@ -54,8 +54,17 @@ const { activePane, groupBy, focusPane } = useLayerPanel();
 /**
  * Not persisted, unlike the grouping: a filter left on from yesterday would quietly hide Layers
  * from someone who has forgotten setting it, and finding Layers is what this list is for.
+ *
+ * The typed text is kept apart from the facets so a keystroke does not rebuild every facet chip.
  */
-const filter = ref<LayerFilter>({ ...NO_FILTER });
+const facetFilter = ref<LayerFilter>({ ...NO_FILTER });
+const query = ref("");
+const filter = computed<LayerFilter>(() => ({ ...facetFilter.value, text: query.value }));
+
+function clearFilters() {
+  facetFilter.value = { ...NO_FILTER };
+  query.value = "";
+}
 
 const statuses = computed(() => layerStatuses(LAYERS, keys.value));
 const gatedCount = computed(() => statuses.value.filter((s) => !s.enabled).length);
@@ -66,9 +75,6 @@ const groups = computed(() =>
   ),
 );
 
-/** Only Providers that have a Layer here, in catalogue order. */
-const providerOptions = computed(() => [...new Map(LAYERS.map((l) => [l.provider, providerLabel(l)]))].map(([key, label]) => ({ key, label })));
-
 const facets = {
   categories: Object.entries(CATEGORY_LABELS) as [Category, string][],
   orbits: Object.entries(ORBIT_LABELS) as [Orbit, string][],
@@ -77,36 +83,39 @@ const facets = {
 };
 
 function toggle<K extends "categories" | "orbits" | "cadences">(facet: K, value: LayerFilter[K][number]) {
-  const current = filter.value[facet] as readonly string[];
+  const current = facetFilter.value[facet] as readonly string[];
   const nextValues = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
-  filter.value = { ...filter.value, [facet]: nextValues };
+  facetFilter.value = { ...facetFilter.value, [facet]: nextValues };
 }
 
 /** A select item cannot carry an empty value, so "every provider" needs a name of its own. */
 const ALL_PROVIDERS = "all";
 
-const providerItems = computed(() => [{ label: "All providers", value: ALL_PROVIDERS }, ...providerOptions.value.map(({ key, label }) => ({ label, value: key }))]);
+/** Only Providers that have a Layer here, in catalogue order. */
+const providerItems = [
+  { label: "All providers", value: ALL_PROVIDERS },
+  ...[...new Map(LAYERS.map((l) => [l.provider, providerLabel(l)]))].map(([value, label]) => ({ label, value })),
+];
+
+const GROUPINGS: { value: GroupBy; label: string }[] = [
+  { value: "provider", label: "by provider" },
+  { value: "category", label: "by type" },
+];
 
 function pickProvider(value: unknown) {
   // The options are built from the registry, so the value is always one of its Provider ids.
-  filter.value = { ...filter.value, providers: value === ALL_PROVIDERS || typeof value !== "string" ? [] : [value as ProviderId] };
-}
-
-function setText(value: string | number | null | undefined) {
-  filter.value = { ...filter.value, text: String(value ?? "") };
-}
-
-function setGroupBy(value: GroupBy) {
-  groupBy.value = value;
+  facetFilter.value = { ...facetFilter.value, providers: value === ALL_PROVIDERS || typeof value !== "string" ? [] : [value as ProviderId] };
 }
 
 /** `activePane` outlives the pane it pointed at when the mode shrinks the deck. */
 const target = computed(() => Math.min(activePane.value, panes.value.length - 1));
 
-/** Which panes show a given Layer — the badges that make a four-up deck legible. */
-function panesUsing(layerId: string): number[] {
-  return panes.value.flatMap((pane, index) => (pane.layerId === layerId ? [index] : []));
-}
+/** Which panes show each Layer — the badges that make a four-up deck legible. Built once per change, not per row. */
+const paneUsage = computed(() => {
+  const usage = new Map<string, number[]>();
+  panes.value.forEach((pane, index) => usage.set(pane.layerId, [...(usage.get(pane.layerId) ?? []), index]));
+  return usage;
+});
 
 /** Each pane with its Layer looked up once, rather than once per binding in the template. */
 const paneRows = computed(() =>
@@ -146,7 +155,7 @@ function chipsFor<K extends Facet>(facet: K, options: [LayerFilter[K][number], s
   return options.map(([value, label]) => ({
     key: `${facet}:${value}`,
     label,
-    on: (filter.value[facet] as readonly string[]).includes(value),
+    on: (facetFilter.value[facet] as readonly string[]).includes(value),
     toggle: () => toggle(facet, value),
   }));
 }
@@ -166,7 +175,7 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
         <button type="button" class="flex w-full items-center gap-1.5 text-left pointer-coarse:py-1.5" :aria-pressed="index === target" @click="focusPane(index)">
           <UBadge size="sm" :color="index === target ? 'primary' : 'neutral'" :variant="index === target ? 'solid' : 'subtle'" :label="String(index + 1)" class="font-mono" />
           <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
-          <span v-if="licence" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licence.severity].text">
+          <span v-if="layer && licence" class="shrink-0 text-[10px]" :class="licenceClasses(layer).text">
             {{ licence.label }}
           </span>
         </button>
@@ -190,7 +199,7 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
     </div>
 
     <div class="border-default shrink-0 space-y-1.5 border-b p-1.5">
-      <UInput :model-value="filter.text" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="w-full" @update:model-value="setText" />
+      <UInput v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="w-full" />
 
       <!-- Facets. Within a facet the chips are alternatives; across facets all must hold. -->
       <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category, orbit and cadence">
@@ -198,11 +207,9 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
           v-for="chip in facetChips"
           :key="chip.key"
           size="xs"
-          :color="chip.on ? 'primary' : 'neutral'"
-          :variant="chip.on ? 'soft' : 'outline'"
+          v-bind="pressed(chip.on, 'soft')"
           :label="chip.label"
           class="px-1.5 py-0.5 text-[10px] pointer-coarse:px-2.5 pointer-coarse:py-1.5"
-          :aria-pressed="chip.on"
           @click="chip.toggle"
         />
       </div>
@@ -218,27 +225,19 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
         />
         <UFieldGroup size="xs" aria-label="Group by">
           <UButton
-            label="by provider"
-            :color="groupBy === 'provider' ? 'primary' : 'neutral'"
-            :variant="groupBy === 'provider' ? 'soft' : 'outline'"
+            v-for="grouping in GROUPINGS"
+            :key="grouping.value"
+            :label="grouping.label"
+            v-bind="pressed(groupBy === grouping.value, 'soft')"
             class="text-[10px]"
-            :aria-pressed="groupBy === 'provider'"
-            @click="setGroupBy('provider')"
-          />
-          <UButton
-            label="by type"
-            :color="groupBy === 'category' ? 'primary' : 'neutral'"
-            :variant="groupBy === 'category' ? 'soft' : 'outline'"
-            class="text-[10px]"
-            :aria-pressed="groupBy === 'category'"
-            @click="setGroupBy('category')"
+            @click="groupBy = grouping.value"
           />
         </UFieldGroup>
       </div>
 
       <p class="text-dimmed flex items-center justify-between px-0.5 text-[10px]">
         <span>Choosing a layer sets pane {{ target + 1 }}.</span>
-        <UButton v-if="isFiltering(filter)" size="xs" color="neutral" variant="link" label="clear filters" class="p-0 text-[10px]" @click="filter = { ...NO_FILTER }" />
+        <UButton v-if="isFiltering(filter)" size="xs" color="neutral" variant="link" label="clear filters" class="p-0 text-[10px]" @click="clearFilters" />
       </p>
     </div>
 
@@ -260,7 +259,7 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
           <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
             <span class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(entry.layer).dot" />
             <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            <UBadge v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" />
+            <UBadge v-for="paneIndex in paneUsage.get(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" />
             <UBadge v-if="entry.disabled" size="sm" color="neutral" variant="outline" trailing-icon="i-lucide-key-round" label="key" class="shrink-0" />
           </span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2" :class="entry.enabled ? '' : 'opacity-55'">

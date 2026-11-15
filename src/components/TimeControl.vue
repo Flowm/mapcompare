@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { pressed } from "@/components/pressed";
 import { useTimeDomain } from "@/composables/useTimeDomain";
 import { atSlot, dayOf, earliestTime, formatTime, latestTime, listTimes, parseTime, resolveTime, slotOf, timeAfter, timeBefore, timesOnDay } from "@/lib/layers/time";
 import type { Layer } from "@/lib/layers/types";
@@ -102,15 +103,7 @@ const fieldUi = computed(() => ({ base: ["font-mono", props.dense ? "text-[10px]
       />
     </UTooltip>
     <UTooltip text="Follow the latest picture">
-      <UButton
-        label="latest"
-        :color="time === undefined ? 'primary' : 'neutral'"
-        variant="outline"
-        class="font-mono"
-        :class="[overMap, dense && 'text-[10px]']"
-        :aria-pressed="time === undefined"
-        @click="emit('update', undefined)"
-      />
+      <UButton label="latest" v-bind="pressed(time === undefined, 'soft')" class="font-mono" :class="[overMap, dense && 'text-[10px]']" @click="emit('update', undefined)" />
     </UTooltip>
   </UFieldGroup>
 </template>

@@ -4,11 +4,11 @@ import { computed } from "vue";
 import StatusChip from "@/components/StatusChip.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useCamera } from "@/composables/useCamera";
-import { licenceInfo } from "@/lib/layers/licence";
+import { licenceClasses, licenceInfo } from "@/lib/layers/licence";
 import { displayTime, type ResolvedTime, type SubstitutionReason } from "@/lib/layers/time";
 import type { Layer } from "@/lib/layers/types";
 import { SEVERITY_CLASSES } from "@/lib/severity";
-import { formatZoomFit, shortZoomFit, zoomFit, zoomSeverity } from "@/lib/zoomFit";
+import { formatZoomFit, shortZoomFit, type ZoomFit, zoomFit, zoomSeverity } from "@/lib/zoomFit";
 
 const props = defineProps<{ layer: Layer; time: ResolvedTime | undefined; ended: string | undefined; failedTiles: number }>();
 
@@ -16,7 +16,14 @@ const { camera } = useAppState();
 const { moveCamera } = useCamera();
 
 const licence = computed(() => licenceInfo(props.layer.licence.tier));
-const fit = computed(() => zoomFit(props.layer, camera.value.zoom));
+/**
+ * The camera changes on every frame of a move, but the fit only changes at whole tile zooms. Handing
+ * back the previous object while it says the same keeps the chips from re-rendering every frame.
+ */
+const fit = computed<ZoomFit>((previous) => {
+  const next = zoomFit(props.layer, camera.value.zoom);
+  return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+});
 const fitSeverity = computed(() => zoomSeverity(fit.value));
 /** The Time shown, or a static Layer's own capture date where it is known. */
 const shownTime = computed(() => (props.time ? displayTime(props.time.time) : props.layer.vintage));
@@ -47,7 +54,7 @@ function zoomToNative() {
 
 <template>
   <div class="flex flex-wrap items-center justify-end gap-1">
-    <StatusChip :color="SEVERITY_CLASSES[licence.severity].color">
+    <StatusChip :color="licenceClasses(layer).color">
       {{ licence.label }}
       <template #detail>
         <p class="text-ink-50 font-medium">{{ layer.licence.note }}</p>
@@ -77,17 +84,12 @@ function zoomToNative() {
 
     <!-- Blur past a Layer's native zoom is correct behaviour, not a failure. This chip is what
          says so, and offers the one click that makes the comparison honest again. -->
-    <StatusChip v-if="fit.kind === 'upscaled'" :color="SEVERITY_CLASSES[fitSeverity].color">
+    <StatusChip v-if="fit.kind !== 'native'" :color="SEVERITY_CLASSES[fitSeverity].color">
       {{ shortZoomFit(fit) }}
       <template #detail>
         <p>{{ formatZoomFit(fit) }}.</p>
-        <UButton size="xs" icon="i-lucide-arrow-down-to-line" :label="`Zoom every pane to z${fit.nativeMax}`" @click="zoomToNative" />
+        <UButton v-if="fit.kind === 'upscaled'" size="xs" icon="i-lucide-arrow-down-to-line" :label="`Zoom every pane to z${fit.nativeMax}`" @click="zoomToNative" />
       </template>
-    </StatusChip>
-
-    <StatusChip v-else-if="fit.kind === 'belowMin'" :color="SEVERITY_CLASSES[fitSeverity].color">
-      {{ shortZoomFit(fit) }}
-      <template #detail>{{ formatZoomFit(fit) }}</template>
     </StatusChip>
 
     <!-- Refused, not missing. This counts 401/403/429/5xx, which in practice means a bad key or a

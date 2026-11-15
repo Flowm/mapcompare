@@ -70,7 +70,7 @@ const SOURCE_TEXT = {
   <UModal v-model:open="open" title="API keys" :fullscreen="isCompact" :ui="{ content: 'sm:max-w-[38rem]' }" :content="{ onOpenAutoFocus: focusRequestedKey }">
     <template #body>
       <div class="space-y-4">
-        <p class="text-ink-400 text-xs leading-relaxed">
+        <p class="text-muted text-xs leading-relaxed">
           Every key is optional — the app ships over twenty keyless layers without them. Keys unlock the commercial providers so you can compare them too.
         </p>
 
@@ -82,7 +82,7 @@ const SOURCE_TEXT = {
             :ui="{ description: 'text-[11px]', hint: 'text-[10px]' }"
           >
             <template #label>
-              <code class="text-ink-200 font-mono text-xs">{{ row.name }}</code>
+              <code class="text-default font-mono text-xs">{{ row.name }}</code>
             </template>
 
             <div class="flex items-center gap-1.5">
@@ -111,8 +111,8 @@ const SOURCE_TEXT = {
 
         <!-- Stated plainly rather than buried: a browser-side map key is never actually secret, and
              telling users otherwise would be the dishonest part. -->
-        <div class="border-ink-700/70 bg-ink-950/50 text-ink-400 rounded border p-3 text-[11px] leading-relaxed">
-          <p class="text-ink-200 font-medium">About key safety</p>
+        <div class="border-ink-700/70 bg-ink-950/50 text-muted rounded border p-3 text-[11px] leading-relaxed">
+          <p class="text-default font-medium">About key safety</p>
           <p class="mt-1">
             Keys you paste here stay in this browser, on this device, and are sent only to the provider whose tiles you load. Note that <em>any</em> browser-side map key is visible
             to anyone who opens the network tab, including keys a site was built with. That is unavoidable for client-side maps; the real protection is an HTTP-referrer restriction

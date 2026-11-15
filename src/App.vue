@@ -8,6 +8,7 @@ import LayerManager from "@/components/LayerManager.vue";
 import LocationSearch from "@/components/LocationSearch.vue";
 import MapDeck from "@/components/MapDeck.vue";
 import ModeSwitcher from "@/components/ModeSwitcher.vue";
+import { pressed } from "@/components/pressed";
 import PWAUpdateBar from "@/components/PWAUpdateBar.vue";
 import ShareButton from "@/components/ShareButton.vue";
 import SourcesDialog from "@/components/SourcesDialog.vue";
@@ -59,15 +60,17 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
 <template>
   <UApp :toaster="{ position: 'bottom-right' }">
     <div class="bg-ink-950 flex h-dvh flex-col">
+      <!-- Below lg the header's buttons keep their icons and give up their words, which screen
+           readers still hear. One rule for the whole bar, so a new button cannot forget it. -->
       <header
-        class="border-default flex shrink-0 items-center gap-2 border-b py-2 pt-[calc(0.5rem+env(safe-area-inset-top))] pr-[calc(0.75rem+env(safe-area-inset-right))] pl-[calc(0.75rem+env(safe-area-inset-left))]"
+        class="border-default flex shrink-0 items-center gap-2 border-b py-2 pt-[calc(0.5rem+env(safe-area-inset-top))] pr-[calc(0.75rem+env(safe-area-inset-right))] pl-[calc(0.75rem+env(safe-area-inset-left))] max-lg:[&_[data-slot=label]]:sr-only"
       >
         <h1 class="shrink-0 text-sm font-semibold tracking-tight">map<span class="text-primary">compare</span></h1>
         <ModeSwitcher />
         <LocationSearch />
 
         <div class="ml-auto flex items-center gap-2">
-          <span class="text-ink-400 hidden font-mono text-[11px] tabular-nums md:inline">
+          <span class="text-muted hidden font-mono text-[11px] tabular-nums md:inline">
             {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }}
           </span>
 
@@ -80,16 +83,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
                licence notes, the API keys and the sources table. A side column on desktop, a
                drawer on a phone; LayerManager decides which. -->
           <UTooltip text="Layer manager">
-            <UButton
-              icon="i-lucide-layers"
-              label="Layers"
-              size="sm"
-              :color="managerOpen ? 'primary' : 'neutral'"
-              :variant="managerOpen ? 'solid' : 'outline'"
-              :aria-pressed="managerOpen"
-              :ui="{ label: 'max-lg:sr-only' }"
-              @click="toggleManager"
-            />
+            <UButton icon="i-lucide-layers" label="Layers" size="sm" v-bind="pressed(managerOpen)" @click="toggleManager" />
           </UTooltip>
 
           <UDropdownMenu :items="overflowItems" :content="{ align: 'end' }">

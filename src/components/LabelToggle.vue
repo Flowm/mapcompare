@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pressed } from "@/components/pressed";
 import { useAppState } from "@/composables/useAppState";
 
 const { labels, setLabels } = useAppState();
@@ -6,15 +7,6 @@ const { labels, setLabels } = useAppState();
 
 <template>
   <UTooltip text="Map labels from OpenFreeMap">
-    <UButton
-      icon="i-lucide-tags"
-      label="Labels"
-      size="sm"
-      :color="labels ? 'primary' : 'neutral'"
-      :variant="labels ? 'solid' : 'outline'"
-      :aria-pressed="labels"
-      :ui="{ label: 'max-lg:sr-only' }"
-      @click="setLabels(!labels)"
-    />
+    <UButton icon="i-lucide-tags" label="Labels" size="sm" v-bind="pressed(labels)" @click="setLabels(!labels)" />
   </UTooltip>
 </template>

@@ -1,4 +1,4 @@
-import { breakpointsTailwind, useBreakpoints } from "@vueuse/core";
+import { breakpointsTailwind, useBreakpoints, useMediaQuery } from "@vueuse/core";
 
 /**
  * Whether the app is laid out for a phone.
@@ -13,6 +13,9 @@ import { breakpointsTailwind, useBreakpoints } from "@vueuse/core";
 const breakpoints = useBreakpoints(breakpointsTailwind);
 const isCompact = breakpoints.smaller("md");
 
+/** A finger rather than a mouse: no hover, so nothing may live only in a tooltip or a title. */
+const isCoarse = useMediaQuery("(pointer: coarse)");
+
 export function useViewport() {
-  return { isCompact };
+  return { isCompact, isCoarse };
 }

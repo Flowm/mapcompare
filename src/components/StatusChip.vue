@@ -20,13 +20,13 @@ withDefaults(defineProps<{ color?: "success" | "warning" | "error" | "neutral"; 
       variant="subtle"
       :color="color"
       class="bg-ink-950/75 rounded px-1.5 py-1 text-[10px] leading-none font-normal backdrop-blur pointer-coarse:px-2 pointer-coarse:py-1.5 pointer-coarse:text-xs"
-      :class="[mono && 'font-mono', color === 'neutral' && 'text-ink-200']"
+      :class="[mono && 'font-mono', color === 'neutral' && 'text-default']"
     >
       <slot />
     </UButton>
 
     <template #content>
-      <div class="text-ink-200 max-w-72 space-y-2 p-3 text-xs leading-relaxed">
+      <div class="text-default max-w-72 space-y-2 p-3 text-xs leading-relaxed">
         <slot name="detail" />
       </div>
     </template>

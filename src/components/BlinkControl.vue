@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { onLongPress } from "@vueuse/core";
+import { computed, ref } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
 import { getLayer } from "@/lib/layers/registry";
@@ -23,33 +24,31 @@ const { panes, blinkTopVisible, toggleBlink, setBlinkTopVisible } = useAppState(
  * as the finger stays down. A plain tap still latches, like a click. A mouse keeps click only,
  * since it has the key.
  */
-const HOLD_MS = 250;
-let holdTimer: ReturnType<typeof setTimeout> | undefined;
+const button = ref<HTMLButtonElement>();
 let peeking = false;
 let swallowClick = false;
 
-function onPointerDown(event: PointerEvent) {
-  // A fresh press owns the next click; nothing left over from an earlier gesture may eat it.
-  swallowClick = false;
-  if (event.pointerType === "mouse") return;
-  holdTimer = setTimeout(() => {
+onLongPress(
+  button,
+  (event) => {
+    if (event.pointerType === "mouse") return;
     peeking = true;
     setBlinkTopVisible(!blinkTopVisible.value);
-  }, HOLD_MS);
-}
-
-/**
- * Ends a press. Only a release after a peek is followed by a click that must be swallowed; a
- * cancelled press (the finger slid onto the map, the OS took a long press) sends no click at all,
- * so arming the swallow then would eat the next real tap.
- */
-function onPointerEnd(event: PointerEvent) {
-  clearTimeout(holdTimer);
-  if (!peeking) return;
-  peeking = false;
-  swallowClick = event.type === "pointerup";
-  setBlinkTopVisible(!blinkTopVisible.value);
-}
+  },
+  {
+    delay: 250,
+    // A finger sliding onto the map is a pan, not a hold.
+    distanceThreshold: 10,
+    onMouseUp: (_duration, _distance, _isLongPress, event) => {
+      if (!peeking) return;
+      peeking = false;
+      // Only a release is followed by a click to swallow. A cancelled press sends none, so arming
+      // the swallow then would eat the next real tap.
+      swallowClick = event.type === "pointerup";
+      setBlinkTopVisible(!blinkTopVisible.value);
+    },
+  },
+);
 
 function onClick() {
   if (swallowClick) {
@@ -78,24 +77,22 @@ function label(index: number): string {
        licensing failure, not a cosmetic one. -->
   <div class="pointer-events-none absolute inset-x-0 bottom-8 z-20 flex justify-center max-md:bottom-20">
     <button
+      ref="button"
       type="button"
       class="border-ink-600/70 bg-ink-950/85 text-ink-50 hover:bg-ink-800 pointer-events-auto flex max-w-[92vw] touch-manipulation items-center gap-2 rounded-full border py-1 pr-2 pl-1.5 text-xs backdrop-blur transition-colors select-none pointer-coarse:py-2"
       @click="onClick"
-      @pointerdown="onPointerDown"
-      @pointerup="onPointerEnd"
-      @pointercancel="onPointerEnd"
-      @pointerleave="onPointerEnd"
+      @pointerdown="swallowClick = false"
       @contextmenu.prevent
     >
       <span v-for="index in [0, 1]" :key="index" class="flex min-w-0 items-center gap-1.5" :class="index === shownIndex ? '' : 'text-dimmed'">
-        <span v-if="index === 1" class="text-ink-400" aria-hidden="true">⇄</span>
-        <span class="rounded px-1 font-mono text-[10px]" :class="index === shownIndex ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-400'">{{ index + 1 }}</span>
+        <span v-if="index === 1" class="text-muted" aria-hidden="true">⇄</span>
+        <span class="rounded px-1 font-mono text-[10px]" :class="index === shownIndex ? 'bg-primary text-ink-950' : 'bg-ink-800 text-muted'">{{ index + 1 }}</span>
         <span class="max-w-[11rem] truncate max-md:max-w-[6.5rem]">{{ label(index) }}</span>
       </span>
 
       <!-- Described, not labelled: an aria-label would replace the layer names, which are the point. -->
       <span class="sr-only">Flip layers. Space flips, holding B peeks.</span>
-      <UKbd value="space" size="sm" class="ml-0.5 pointer-coarse:hidden" />
+      <UKbd value="space" size="sm" class="ml-0.5" />
       <span class="text-dimmed hidden shrink-0 text-[10px] whitespace-nowrap pointer-coarse:inline">hold to peek</span>
     </button>
   </div>

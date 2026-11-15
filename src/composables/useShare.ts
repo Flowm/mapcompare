@@ -1,5 +1,5 @@
 import { useToast } from "@nuxt/ui/composables/useToast";
-import { useClipboard } from "@vueuse/core";
+import { createSharedComposable, useClipboard } from "@vueuse/core";
 
 import { useAppState } from "./useAppState";
 
@@ -10,11 +10,14 @@ import { useAppState } from "./useAppState";
  * phone's overflow menu has closed by the time the copy lands, so it asks for a toast instead.
  * A failed copy always says so: clipboard access can be denied, or missing over plain http.
  */
+/** One clipboard for the whole app: each instance watches the clipboard permissions on its own. */
+// `legacy` falls back to execCommand where the async clipboard is unavailable, such as plain http.
+const useSharedClipboard = createSharedComposable(() => useClipboard({ copiedDuring: 1600, legacy: true }));
+
 export function useShare() {
   const { sharePermalink } = useAppState();
   const toast = useToast();
-  // `legacy` falls back to execCommand where the async clipboard is unavailable, such as plain http.
-  const { copy, copied } = useClipboard({ copiedDuring: 1600, legacy: true });
+  const { copy, copied } = useSharedClipboard();
 
   async function share(confirm: "label" | "toast" = "label") {
     try {
