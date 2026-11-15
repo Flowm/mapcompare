@@ -26,7 +26,7 @@ async function share() {
   <button
     type="button"
     class="border-ink-700 bg-ink-900 hover:bg-ink-800 rounded border px-2 py-1.5 text-xs transition-colors"
-    :class="copied ? 'text-accent' : 'text-ink-200'"
+    :class="copied ? 'text-primary' : 'text-ink-200'"
     title="Copy a link to this exact comparison"
     @click="share"
   >

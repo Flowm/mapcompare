@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import StatusChip from "@/components/StatusChip.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useCamera } from "@/composables/useCamera";
 import { licenceInfo } from "@/lib/layers/licence";
@@ -45,52 +46,55 @@ function zoomToNative() {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center justify-end gap-1 text-[10px] leading-none">
-    <span class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASSES[licence.severity].chip" :title="`${layer.licence.note}\n\n${licence.explanation}`">
+  <div class="flex flex-wrap items-center justify-end gap-1">
+    <StatusChip :color="SEVERITY_CLASSES[licence.severity].color">
       {{ licence.label }}
-    </span>
+      <template #detail>
+        <p class="text-ink-50 font-medium">{{ layer.licence.note }}</p>
+        <p>{{ licence.explanation }}</p>
+      </template>
+    </StatusChip>
 
     <!-- The pane is not showing what was asked for: a pinned link that aged out of a rolling
          archive, or a day the satellite missed. Said, never silent; it replaces the plain Time
          chip so the shown Time is never stated twice. -->
-    <span v-if="substitution" class="rounded border px-1.5 py-1 font-mono backdrop-blur" :class="SEVERITY_CLASSES.warn.chip" :title="substitution.explanation">
+    <StatusChip v-if="substitution" color="warning" mono>
       Requested {{ substitution.requested }}, showing {{ substitution.shown }}
-    </span>
-    <span v-else-if="shownTime" class="border-ink-600/50 bg-ink-950/75 text-ink-200 rounded border px-1.5 py-1 font-mono backdrop-blur" title="Time of the picture">
+      <template #detail>{{ substitution.explanation }}</template>
+    </StatusChip>
+    <StatusChip v-else-if="shownTime" mono>
       {{ shownTime }}
-    </span>
+      <template #detail>The time of the picture this pane shows.</template>
+    </StatusChip>
 
-    <span v-if="ended" class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASSES.warn.chip" :title="`No new pictures since ${ended}. The archive is still served.`">
+    <StatusChip v-if="ended" color="warning">
       ended {{ ended }}
-    </span>
+      <template #detail>No new pictures since {{ ended }}. The archive is still served.</template>
+    </StatusChip>
 
     <!-- Blur past a Layer's native zoom is correct behaviour, not a failure. This chip is what
          says so, and offers the one click that makes the comparison honest again. -->
-    <button
-      v-if="fit.kind === 'upscaled'"
-      type="button"
-      class="rounded border px-1.5 py-1 backdrop-blur transition-colors hover:brightness-125"
-      :class="SEVERITY_CLASSES[fitSeverity].chip"
-      :title="`${formatZoomFit(fit)}. Click to zoom every pane to z${fit.nativeMax}, where this layer is at full resolution.`"
-      @click="zoomToNative"
-    >
-      {{ shortZoomFit(fit) }} ↧
-    </button>
-
-    <span v-else-if="fit.kind === 'belowMin'" class="rounded border px-1.5 py-1 backdrop-blur" :class="SEVERITY_CLASSES[fitSeverity].chip" :title="formatZoomFit(fit)">
+    <StatusChip v-if="fit.kind === 'upscaled'" :color="SEVERITY_CLASSES[fitSeverity].color">
       {{ shortZoomFit(fit) }}
-    </span>
+      <template #detail>
+        <p>{{ formatZoomFit(fit) }}.</p>
+        <UButton size="xs" icon="i-lucide-arrow-down-to-line" :label="`Zoom every pane to z${fit.nativeMax}`" @click="zoomToNative" />
+      </template>
+    </StatusChip>
+
+    <StatusChip v-else-if="fit.kind === 'belowMin'" :color="SEVERITY_CLASSES[fitSeverity].color">
+      {{ shortZoomFit(fit) }}
+      <template #detail>{{ formatZoomFit(fit) }}</template>
+    </StatusChip>
 
     <!-- Refused, not missing. This counts 401/403/429/5xx, which in practice means a bad key or a
          rate limit; coverage gaps arrive as 404s, which MapLibre never reports (see usePaneTiles).
          Labelling these "missing" would promise a coverage warning the app cannot give. -->
-    <span
-      v-if="failedTiles > 0"
-      class="rounded border px-1.5 py-1 backdrop-blur"
-      :class="SEVERITY_CLASSES.bad.chip"
-      title="The provider refused these tile requests — usually a rejected API key, a rate limit or an outage. Tiles absent for want of coverage are not counted."
-    >
+    <StatusChip v-if="failedTiles > 0" color="error">
       {{ failedTiles }} tiles refused
-    </span>
+      <template #detail>
+        The provider refused these tile requests, usually a rejected API key, a rate limit or an outage. Tiles absent for want of coverage are not counted.
+      </template>
+    </StatusChip>
   </div>
 </template>

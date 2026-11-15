@@ -131,7 +131,7 @@ function assign(layer: Layer) {
 
 const chip = (on: boolean) =>
   on
-    ? "border-accent/70 bg-accent/15 text-ink-50 rounded border px-1.5 py-0.5 text-[10px]"
+    ? "border-primary/70 bg-primary/15 text-ink-50 rounded border px-1.5 py-0.5 text-[10px]"
     : "border-ink-700 text-ink-400 hover:text-ink-50 rounded border px-1.5 py-0.5 text-[10px]";
 </script>
 
@@ -148,9 +148,9 @@ const chip = (on: boolean) =>
         <button v-if="panes.length === 2" type="button" class="text-ink-400 hover:text-ink-50 text-[10px]" title="Swap the two panes" @click="swapPanes(0, 1)">swap ⇅</button>
       </div>
 
-      <div v-for="{ pane, index, layer, licence } in paneRows" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-accent/15' : ''">
+      <div v-for="{ pane, index, layer, licence } in paneRows" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-primary/15' : ''">
         <button type="button" class="flex w-full items-center gap-1.5 text-left" :aria-pressed="index === target" @click="focusPane(index)">
-          <span class="rounded px-1 font-mono text-[10px]" :class="index === target ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
+          <span class="rounded px-1 font-mono text-[10px]" :class="index === target ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
           <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
           <span v-if="licence" class="shrink-0 text-[10px]" :class="SEVERITY_CLASSES[licence.severity].text">
             {{ licence.label }}
@@ -179,7 +179,7 @@ const chip = (on: boolean) =>
         :value="filter.text"
         type="search"
         placeholder="Filter layers…"
-        class="bg-ink-900 text-ink-50 placeholder:text-ink-600 border-ink-700 focus:border-accent w-full rounded border px-2 py-1 text-xs focus:outline-none"
+        class="bg-ink-900 text-ink-50 placeholder:text-ink-600 border-ink-700 focus:border-primary w-full rounded border px-2 py-1 text-xs focus:outline-none"
         @input="setText"
       />
       <!-- Facets. Within a row the chips are alternatives; across rows all must hold. -->
@@ -221,7 +221,7 @@ const chip = (on: boolean) =>
         <select
           :value="filter.providers[0] ?? ''"
           aria-label="Provider"
-          class="border-ink-700 bg-ink-900 text-ink-200 focus:border-accent min-w-0 flex-1 rounded border px-1 py-0.5 text-[10px] focus:outline-none"
+          class="border-ink-700 bg-ink-900 text-ink-200 focus:border-primary min-w-0 flex-1 rounded border px-1 py-0.5 text-[10px] focus:outline-none"
           @change="pickProvider"
         >
           <option value="">All providers</option>
@@ -266,14 +266,14 @@ const chip = (on: boolean) =>
           :key="entry.layer.id"
           type="button"
           class="hover:bg-ink-800 block w-full px-2.5 py-1.5 text-left"
-          :class="[panes[target]?.layerId === entry.layer.id ? 'bg-accent/10' : '', entry.enabled ? '' : 'opacity-55']"
+          :class="[panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : '', entry.enabled ? '' : 'opacity-55']"
           :title="entry.enabled ? undefined : entry.disabled!.message"
           @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
         >
           <span class="flex items-center gap-1.5">
             <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot" />
             <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            <span v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" class="bg-accent text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
+            <span v-for="paneIndex in panesUsing(entry.layer.id)" :key="paneIndex" class="bg-primary text-ink-950 shrink-0 rounded px-1 font-mono text-[10px]">
               {{ paneIndex + 1 }}
             </span>
             <span v-if="entry.disabled" class="border-ink-600 text-ink-200 shrink-0 rounded border px-1 text-[10px]">key ↗</span>

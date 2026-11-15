@@ -70,7 +70,7 @@ function onKeydown(event: KeyboardEvent) {
     <div class="bg-ink-50/90 pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 shadow-[0_0_4px_rgba(0,0,0,0.8)]" />
     <div
       class="border-ink-50/80 bg-ink-950/80 pointer-events-none absolute top-1/2 left-1/2 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border backdrop-blur transition-colors"
-      :class="dragging ? 'border-accent' : ''"
+      :class="dragging ? 'border-primary' : ''"
     >
       <svg viewBox="0 0 24 24" class="text-ink-50 size-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M9 6 4 12l5 6M15 6l5 6-5 6" stroke-linecap="round" stroke-linejoin="round" />

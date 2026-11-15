@@ -176,7 +176,7 @@ useResizeObserver(container, () => map.value?.resize());
         <p class="text-ink-400 mt-2 text-xs leading-relaxed">
           Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste a key in Settings.
         </p>
-        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent mt-3 inline-block text-xs hover:underline">
+        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-3 inline-block text-xs hover:underline">
           Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗
         </a>
       </div>

@@ -17,7 +17,7 @@
     "browser": true,
     "vue": true
   },
-  "ignorePatterns": ["dist"],
+  "ignorePatterns": ["dist", "auto-imports.d.ts", "components.d.ts"],
   "overrides": [
     {
       "files": ["scripts/**"],

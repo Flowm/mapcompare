@@ -43,7 +43,7 @@ function label(index: number): string {
     >
       <span v-for="index in [0, 1]" :key="index" class="flex min-w-0 items-center gap-1.5" :class="index === shownIndex ? '' : 'text-ink-500'">
         <span v-if="index === 1" class="text-ink-400" aria-hidden="true">⇄</span>
-        <span class="rounded px-1 font-mono text-[10px]" :class="index === shownIndex ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-400'">{{ index + 1 }}</span>
+        <span class="rounded px-1 font-mono text-[10px]" :class="index === shownIndex ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-400'">{{ index + 1 }}</span>
         <span class="max-w-[11rem] truncate">{{ label(index) }}</span>
       </span>
 

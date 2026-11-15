@@ -15,4 +15,5 @@ updateConfig:
 allowBuilds:
   esbuild: false
   sharp: false
+  vue-demi: true
   workerd: true

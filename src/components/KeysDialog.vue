@@ -97,7 +97,7 @@ const SOURCE_TEXT = {
             autocomplete="off"
             spellcheck="false"
             :placeholder="sources[row.name] === 'build' ? 'Override the built-in key…' : 'Paste a key…'"
-            class="border-ink-600 bg-ink-950 text-ink-50 focus:border-accent min-w-0 flex-1 rounded border px-2 py-1.5 font-mono text-xs focus:outline-none"
+            class="border-ink-600 bg-ink-950 text-ink-50 focus:border-primary min-w-0 flex-1 rounded border px-2 py-1.5 font-mono text-xs focus:outline-none"
             @change="save(row.name)"
             @keydown.enter.prevent="save(row.name)"
           />
@@ -116,7 +116,7 @@ const SOURCE_TEXT = {
           {{ SOURCE_TEXT[sources[row.name]] }}
         </p>
 
-        <a v-if="row.keyUrl" :href="row.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent mt-1 inline-block text-[11px] hover:underline">Get a key ↗</a>
+        <a v-if="row.keyUrl" :href="row.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-1 inline-block text-[11px] hover:underline">Get a key ↗</a>
       </div>
 
       <!-- Stated plainly rather than buried: a browser-side map key is never actually secret, and

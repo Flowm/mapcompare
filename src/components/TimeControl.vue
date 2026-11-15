@@ -60,8 +60,8 @@ function pick(event: Event) {
 
 const field = computed(() =>
   props.dense
-    ? "border-ink-700 bg-ink-900 text-ink-50 focus:border-accent rounded border px-1 py-0.5 font-mono text-[10px] focus:outline-none"
-    : "border-ink-600/70 bg-ink-950/85 text-ink-50 focus:border-accent rounded border px-1.5 py-1 font-mono text-xs backdrop-blur focus:outline-none",
+    ? "border-ink-700 bg-ink-900 text-ink-50 focus:border-primary rounded border px-1 py-0.5 font-mono text-[10px] focus:outline-none"
+    : "border-ink-600/70 bg-ink-950/85 text-ink-50 focus:border-primary rounded border px-1.5 py-1 font-mono text-xs backdrop-blur focus:outline-none",
 );
 const button = computed(() =>
   props.dense
@@ -88,7 +88,7 @@ const button = computed(() =>
     <button type="button" :class="button" :disabled="next === undefined" :title="`Next ${spec.label.toLowerCase()}`" @click="step(next)">▶</button>
     <button
       type="button"
-      :class="[button, time === undefined ? 'border-accent/60! text-accent!' : '']"
+      :class="[button, time === undefined ? 'border-primary/60! text-primary!' : '']"
       :aria-pressed="time === undefined"
       title="Always show the newest picture, also in a shared link"
       @click="emit('update', undefined)"

@@ -185,7 +185,7 @@ onClickOutside(root, () => (open.value = false));
       ref="field"
       v-model="query"
       type="text"
-      class="border-ink-700 bg-ink-900 text-ink-50 placeholder:text-ink-600 focus:border-accent w-full rounded border px-2 py-1.5 text-xs focus:outline-none"
+      class="border-ink-700 bg-ink-900 text-ink-50 placeholder:text-ink-600 focus:border-primary w-full rounded border px-2 py-1.5 text-xs focus:outline-none"
       placeholder="Search a place or coordinates"
       aria-label="Search a place or paste coordinates"
       role="combobox"

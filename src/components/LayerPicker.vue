@@ -116,12 +116,12 @@ function showEverything() {
       ref="trigger"
       type="button"
       class="bg-ink-950/85 text-ink-50 hover:bg-ink-800 flex max-w-[14rem] items-center gap-1.5 rounded border px-2 py-1 text-xs backdrop-blur transition-colors"
-      :class="activePane === index ? 'border-accent/70' : 'border-ink-600/70'"
+      :class="activePane === index ? 'border-primary/70' : 'border-ink-600/70'"
       :aria-expanded="open"
       aria-haspopup="listbox"
       @click="toggle"
     >
-      <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
+      <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
       <span
         v-if="current"
         class="size-1.5 shrink-0 rounded-full"
@@ -149,7 +149,7 @@ function showEverything() {
             v-model="query"
             type="search"
             placeholder="Switch layer…"
-            class="bg-ink-950/60 text-ink-50 placeholder:text-ink-600 focus:border-accent w-full rounded border border-transparent px-2 py-1 text-xs focus:outline-none"
+            class="bg-ink-950/60 text-ink-50 placeholder:text-ink-600 focus:border-primary w-full rounded border border-transparent px-2 py-1 text-xs focus:outline-none"
           />
         </div>
 
@@ -162,7 +162,7 @@ function showEverything() {
               :key="entry.layer.id"
               type="button"
               class="hover:bg-ink-800 flex w-full items-center gap-2 px-2.5 py-1 text-left"
-              :class="entry.layer.id === layer.layerId ? 'bg-accent/10' : ''"
+              :class="entry.layer.id === layer.layerId ? 'bg-primary/10' : ''"
               role="option"
               :aria-selected="entry.layer.id === layer.layerId"
               @click="choose(entry.layer)"
