@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onClickOutside, useEventListener } from "@vueuse/core";
-import { computed, nextTick, ref, watch } from "vue";
+import type { CommandPaletteGroup, CommandPaletteItem } from "@nuxt/ui";
+import { useEventListener } from "@vueuse/core";
+import { computed, ref } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
 import { isTypingTarget } from "@/composables/useKeyboardShortcuts";
 import { useLocationSearch } from "@/composables/useLocationSearch";
+import { useViewport } from "@/composables/useViewport";
 import { coordinateToDestination, formatCoordinate } from "@/lib/coordinates";
 import { type Destination, placeContext, placeCoordinates, placeToDestination, presetToDestination } from "@/lib/destination";
 import { PRESETS } from "@/lib/presets";
@@ -16,9 +18,9 @@ import { PRESETS } from "@/lib/presets";
  * here, so the list below renders one row type and arrow keys do not have to know which kind of
  * thing they are moving over. Everything specific to a source lives in its subtitle.
  *
- * The panel is a plain absolutely-positioned sibling rather than a teleported one, like the menu it
- * replaces: it hangs off the header, where nothing clips it. LayerPicker needs the teleport
- * because it opens inside a pane, under `overflow-hidden` and a swipe seam's `clip-path`.
+ * A command palette in a modal rather than a dropdown off the header. The header has no room for a
+ * 20rem field on a phone, and one implementation that works at every width beats a field on one
+ * and a sheet on the other. The trigger still looks like a field on desktop, `/` included.
  *
  * A coordinate row shows the parse back, including the format it was read as and whether the axes
  * were swapped. There is no name to show, and no other way to catch a misreading before the camera
@@ -27,15 +29,9 @@ import { PRESETS } from "@/lib/presets";
 
 const { goTo } = useAppState();
 const { query, outcome, reset } = useLocationSearch();
-
-const LISTBOX_ID = "location-search-results";
-const optionId = (index: number) => `location-search-option-${index}`;
+const { isCompact } = useViewport();
 
 const open = ref(false);
-const root = ref<HTMLElement>();
-const field = ref<HTMLInputElement>();
-const panel = ref<HTMLElement>();
-const highlight = ref(-1);
 
 /**
  * Two lines, always. The tag is the compact technical fact about the row, whatever that is for the
@@ -111,59 +107,40 @@ const message = computed(() => {
   }
 });
 
-const showPresetHeading = computed(() => outcome.value.kind === "presets");
+interface RowItem extends CommandPaletteItem {
+  tag: string;
+}
 
-// A changed list invalidates whatever was highlighted in the old one.
-watch(rows, () => (highlight.value = -1));
-
-watch(highlight, async (index) => {
-  if (index < 0) return;
-  await nextTick();
-  panel.value?.querySelector(`#${optionId(index)}`)?.scrollIntoView({ block: "nearest" });
-});
+const GROUP_LABELS = { presets: "Worth comparing", coordinate: "Coordinate", places: "Places" } as const;
 
 /**
- * Opening is bound to `@input` rather than to a watcher on `query`, and has to stay that way:
- * `reset()` writes the query too, so a watcher reopens the panel on the way out of `choose` — you
- * pick Berlin, the camera moves, and the list is sitting there open again.
+ * Every group skips the palette's own fuzzy filter. Presets are a fixed list, a coordinate is
+ * answered by the parser and places by the geocoder: filtering them again by label would hide a
+ * place whose name matches by its alternate spelling, and a coordinate always.
  */
-function choose(row: Row | undefined) {
-  if (row === undefined) return;
+const groups = computed<CommandPaletteGroup[]>(() => {
+  const kind = outcome.value.kind;
+  if (kind !== "presets" && kind !== "coordinate" && kind !== "places") return [];
+  return [
+    {
+      id: kind,
+      label: GROUP_LABELS[kind],
+      ignoreFilter: true,
+      items: rows.value.map((row): RowItem => ({
+        id: row.key,
+        label: row.title,
+        description: row.subtitle === "" ? undefined : row.subtitle,
+        tag: row.tag,
+        onSelect: () => choose(row),
+      })),
+    },
+  ];
+});
+
+function choose(row: Row) {
   goTo(row.destination);
   reset();
   open.value = false;
-  // Focus goes back to the map, which is also what re-arms the 1-4 / s / b shortcuts.
-  field.value?.blur();
-}
-
-function move(delta: number) {
-  const count = rows.value.length;
-  if (count === 0) return;
-  const from = highlight.value < 0 && delta < 0 ? 0 : highlight.value;
-  highlight.value = (from + delta + count) % count;
-}
-
-function onKeydown(event: KeyboardEvent) {
-  switch (event.key) {
-    case "ArrowDown":
-      move(1);
-      break;
-    case "ArrowUp":
-      move(-1);
-      break;
-    case "Enter":
-      // Nothing highlighted takes the first row: after typing a place name the next key is Enter,
-      // not Down-then-Enter.
-      choose(rows.value[highlight.value] ?? rows.value[0]);
-      break;
-    case "Escape":
-      if (open.value) open.value = false;
-      else field.value?.blur();
-      break;
-    default:
-      return;
-  }
-  event.preventDefault();
 }
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
@@ -171,74 +148,45 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   // Otherwise the slash lands in the field it just focused.
   event.preventDefault();
   open.value = true;
-  field.value?.focus();
 });
-
-onClickOutside(root, () => (open.value = false));
 </script>
 
 <template>
-  <!-- The width lives here, once. Field and panel both inherit it, so the panel cannot end up
-       wider than the thing it hangs off. -->
-  <div ref="root" class="relative w-80">
-    <input
-      ref="field"
-      v-model="query"
-      type="text"
-      class="border-ink-700 bg-ink-900 text-ink-50 placeholder:text-ink-600 focus:border-accent w-full rounded border px-2 py-1.5 text-xs focus:outline-none"
-      placeholder="Search a place or coordinates"
-      aria-label="Search a place or paste coordinates"
-      role="combobox"
-      aria-autocomplete="list"
-      :aria-expanded="open"
-      :aria-controls="LISTBOX_ID"
-      :aria-activedescendant="highlight >= 0 ? optionId(highlight) : undefined"
-      autocomplete="off"
-      spellcheck="false"
-      @focus="open = true"
-      @input="open = true"
-      @keydown="onKeydown"
-    />
-
+  <UButton v-if="isCompact" icon="i-lucide-search" size="sm" color="neutral" variant="ghost" aria-label="Search a place or paste coordinates" @click="open = true" />
+  <UButton
+    v-else
+    icon="i-lucide-search"
+    size="sm"
+    color="neutral"
+    variant="outline"
+    class="text-dimmed w-40 justify-start font-normal lg:w-56 xl:w-80"
+    aria-label="Search a place or paste coordinates"
+    @click="open = true"
+  >
+    <span class="truncate">Search a place or coordinates</span>
     <!-- The only advertisement the shortcut gets; without it nobody discovers `/`. -->
-    <kbd
-      v-if="!open && query === ''"
-      class="border-ink-700 text-ink-600 pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border px-1 font-mono text-[10px] leading-tight"
-    >
-      /
-    </kbd>
+    <template #trailing><UKbd value="/" class="ml-auto" /></template>
+  </UButton>
 
-    <div
-      v-if="open"
-      :id="LISTBOX_ID"
-      ref="panel"
-      class="border-ink-700 bg-ink-900/98 absolute top-full left-0 z-30 mt-1 max-h-[70vh] w-full overflow-y-auto rounded border shadow-xl backdrop-blur"
-      role="listbox"
-      aria-label="Places"
-    >
-      <p v-if="showPresetHeading" class="bg-ink-800/95 text-ink-400 sticky top-0 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">Worth comparing</p>
-
-      <!-- Not a <button>: in the activedescendant pattern the input keeps focus, and focusable rows
-           would make every result a tab stop. mousedown is swallowed so the click does not blur. -->
-      <div
-        v-for="(row, index) in rows"
-        :id="optionId(index)"
-        :key="row.key"
-        class="border-ink-800 hover:bg-ink-800 block w-full cursor-pointer border-b px-3 py-2 text-left last:border-b-0"
-        :class="index === highlight ? 'bg-ink-800' : ''"
-        role="option"
-        :aria-selected="index === highlight"
-        @mousedown.prevent
-        @click="choose(row)"
+  <UModal v-model:open="open" title="Go to" description="Search a place by name, paste a coordinate, or pick a preset." :fullscreen="isCompact" :ui="{ content: 'sm:max-w-xl' }">
+    <template #content>
+      <UCommandPalette
+        v-model:search-term="query"
+        :groups="groups"
+        :loading="outcome.kind === 'loading'"
+        placeholder="Search a place or paste coordinates"
+        close
+        class="h-full sm:max-h-[70vh]"
+        @update:open="open = $event"
       >
-        <span class="flex items-baseline justify-between gap-2">
-          <span class="text-ink-50 truncate text-xs font-medium">{{ row.title }}</span>
-          <span class="text-ink-400 shrink-0 font-mono text-[10px] tabular-nums">{{ row.tag }}</span>
-        </span>
-        <span v-if="row.subtitle !== ''" class="text-ink-400 mt-0.5 block text-[11px] leading-snug">{{ row.subtitle }}</span>
-      </div>
+        <template #item-trailing="{ item }">
+          <span class="text-muted shrink-0 font-mono text-[10px] tabular-nums">{{ (item as RowItem).tag }}</span>
+        </template>
 
-      <p v-if="message !== undefined" class="text-ink-400 px-3 py-3 text-xs">{{ message }}</p>
-    </div>
-  </div>
+        <template #empty>
+          <p class="text-muted px-3 py-6 text-center text-xs">{{ message ?? "Nothing to show." }}</p>
+        </template>
+      </UCommandPalette>
+    </template>
+  </UModal>
 </template>

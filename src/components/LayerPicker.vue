@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { onClickOutside, useEventListener, useWindowSize } from "@vueuse/core";
-import { computed, nextTick, ref, watch } from "vue";
+// Imported rather than auto-registered: `<component :is>` needs the component objects themselves.
+import UDrawer from "@nuxt/ui/components/Drawer.vue";
+import UPopover from "@nuxt/ui/components/Popover.vue";
+import { computed, ref } from "vue";
 
+import LayerPickerList from "@/components/LayerPickerList.vue";
 import TimeControl from "@/components/TimeControl.vue";
-import { useApiKeys } from "@/composables/useApiKeys";
+import { useAppState } from "@/composables/useAppState";
 import { useLayerPanel } from "@/composables/useLayerPanel";
-import { type Anchor, placePanel } from "@/lib/anchor";
-import { groupLayers, layerStatuses, providerLabel } from "@/lib/layers/availability";
-import { licenceInfo } from "@/lib/layers/licence";
-import { getLayer, LAYERS } from "@/lib/layers/registry";
+import { useViewport } from "@/composables/useViewport";
+import { licenceClasses } from "@/lib/layers/licence";
+import { getLayer } from "@/lib/layers/registry";
 import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
-import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * A pane's own layer switcher: the fastest path from "this pane" to "that layer".
@@ -23,76 +24,35 @@ import { SEVERITY_CLASSES } from "@/lib/severity";
  *     being on the map. That is only honest because the manager still lists the gated ones with
  *     their notes and a way to add the key — the footer here says how many are waiting there.
  *
- * The panel is teleported to <body> and positioned from the trigger's viewport rect. Inside the
- * pane it would be clipped: by `overflow-hidden`, by the neighbouring pane's chrome stacking over
- * it, and in swipe mode by the top pane's `clip-path` erasing everything past the seam.
+ * A popover on desktop, a drawer on a phone, where a pane can be a strip too short to hang a list
+ * off. Both portal to <body>: inside the pane the list would be clipped by `overflow-hidden`, by the
+ * neighbouring pane's chrome stacking over it, and in swipe mode by the top pane's `clip-path`.
  */
 
 const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "right" }>();
 const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
-const { keys } = useApiKeys();
-const { activePane, groupBy, openPanel, focusPane } = useLayerPanel();
-
-const PANEL = { width: 260, maxHeight: 340 };
+const { activePane, openManager, focusPane } = useLayerPanel();
+const { isCompact } = useViewport();
+const { mode } = useAppState();
 
 const open = ref(false);
-const query = ref("");
-const trigger = ref<HTMLElement>();
-const panel = ref<HTMLElement>();
-const search = ref<HTMLInputElement>();
-
-const { width: viewportWidth, height: viewportHeight } = useWindowSize();
-const anchor = ref<Anchor>({ top: 0, left: 0, right: 0, bottom: 0 });
-
-const statuses = computed(() => layerStatuses(LAYERS, keys.value));
-const available = computed(() => statuses.value.filter((s) => s.enabled));
-const gatedCount = computed(() => statuses.value.length - available.value.length);
-
-const groups = computed(() => {
-  const term = query.value.trim().toLowerCase();
-  const matching = term === "" ? available.value : available.value.filter((s) => `${s.layer.label} ${providerLabel(s.layer)}`.toLowerCase().includes(term));
-  return groupLayers(matching, groupBy.value);
-});
-
 const current = computed(() => getLayer(props.layer.layerId));
 
-const placement = computed(() => {
-  const { left, top, bottom, maxHeight } = placePanel(anchor.value, PANEL, { width: viewportWidth.value, height: viewportHeight.value }, props.align ?? "left");
-  return {
-    position: "fixed" as const,
-    width: `${PANEL.width}px`,
-    maxHeight: `${maxHeight}px`,
-    left: `${left}px`,
-    ...(top === undefined ? { bottom: `${bottom}px` } : { top: `${top}px` }),
-  };
-});
+const surface = computed(() =>
+  isCompact.value
+    ? { is: UDrawer, props: { title: `Layer for pane ${props.index + 1}`, ui: { body: "p-0 sm:p-0" } } }
+    : {
+        is: UPopover,
+        props: { content: { side: "bottom" as const, align: props.align === "right" ? ("end" as const) : ("start" as const), collisionPadding: 8 }, ui: { content: "w-[260px]" } },
+      },
+);
 
-function measure() {
-  const box = trigger.value?.getBoundingClientRect();
-  if (box) anchor.value = { top: box.top, left: box.left, right: box.right, bottom: box.bottom };
-}
-
-function toggle() {
+function onOpen(isOpen: boolean) {
   // Picking a pane on the map is also what the manager should act on next.
-  focusPane(props.index);
-  open.value = !open.value;
+  if (isOpen) focusPane(props.index);
+  open.value = isOpen;
 }
-
-watch(open, async (isOpen) => {
-  if (!isOpen) return;
-  measure();
-  query.value = "";
-  await nextTick();
-  search.value?.focus();
-});
-
-// The trigger moves whenever pane geometry changes, and the panel is anchored to where it was.
-useEventListener(window, "resize", measure);
-useEventListener(window, "keydown", (event: KeyboardEvent) => {
-  if (event.key === "Escape" && open.value) open.value = false;
-});
-onClickOutside(panel, () => (open.value = false), { ignore: [trigger] });
 
 function choose(layer: Layer) {
   // The old Time belonged to the old Layer: a year of EOX means nothing to GOES.
@@ -105,88 +65,39 @@ function pickTime(time: string | undefined) {
 }
 
 function showEverything() {
-  openPanel();
   open.value = false;
+  openManager();
 }
 </script>
 
 <template>
   <div class="flex flex-wrap items-center gap-1.5" :class="align === 'right' ? 'justify-end' : 'justify-start'">
-    <button
-      ref="trigger"
-      type="button"
-      class="bg-ink-950/85 text-ink-50 hover:bg-ink-800 flex max-w-[14rem] items-center gap-1.5 rounded border px-2 py-1 text-xs backdrop-blur transition-colors"
-      :class="activePane === index ? 'border-accent/70' : 'border-ink-600/70'"
-      :aria-expanded="open"
-      aria-haspopup="listbox"
-      @click="toggle"
-    >
-      <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-accent text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
-      <span
-        v-if="current"
-        class="size-1.5 shrink-0 rounded-full"
-        :class="SEVERITY_CLASSES[licenceInfo(current.licence.tier).severity].dot"
-        :title="licenceInfo(current.licence.tier).label"
-      />
-      <span class="truncate">{{ current?.label ?? layer.layerId }}</span>
-      <span class="text-ink-400 shrink-0">▾</span>
-    </button>
-
-    <TimeControl v-if="current?.time" :layer="current" :time="layer.time" @update="pickTime" />
-
-    <Teleport to="body">
-      <div
-        v-if="open"
-        ref="panel"
-        class="border-ink-700 bg-ink-900/98 z-40 flex flex-col overflow-hidden rounded-lg border shadow-2xl backdrop-blur"
-        :style="placement"
-        role="listbox"
-        :aria-label="`Layer for pane ${index + 1}`"
+    <component :is="surface.is" :open="open" v-bind="surface.props" @update:open="onOpen">
+      <button
+        type="button"
+        class="bg-ink-950/85 text-ink-50 hover:bg-ink-800 flex max-w-[14rem] items-center gap-1.5 rounded border px-2 py-1 text-xs backdrop-blur transition-colors pointer-coarse:py-1.5"
+        :class="activePane === index ? 'border-primary/70' : 'border-ink-600/70'"
+        :aria-label="`Layer for pane ${index + 1}: ${current?.label ?? layer.layerId}`"
       >
-        <div class="border-ink-800 shrink-0 border-b p-1.5">
-          <input
-            ref="search"
-            v-model="query"
-            type="search"
-            placeholder="Switch layer…"
-            class="bg-ink-950/60 text-ink-50 placeholder:text-ink-600 focus:border-accent w-full rounded border border-transparent px-2 py-1 text-xs focus:outline-none"
-          />
-        </div>
+        <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-primary text-ink-950' : 'bg-ink-800 text-default'">{{ index + 1 }}</span>
+        <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(current).dot" />
+        <span class="truncate">{{ current?.label ?? layer.layerId }}</span>
+        <UIcon name="i-lucide-chevron-down" class="text-muted size-3.5 shrink-0" />
+      </button>
 
-        <div class="min-h-0 flex-1 overflow-y-auto">
-          <div v-for="group in groups" :key="group.key">
-            <p class="bg-ink-800/95 text-ink-400 sticky top-0 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase backdrop-blur">{{ group.label }}</p>
+      <!-- A drawer's `content` slot would replace its handle and title, so the list goes in its body.
+           No autofocus there: on a phone it would raise the keyboard over the list. -->
+      <template v-if="isCompact" #body>
+        <LayerPickerList :selected="layer.layerId" @choose="choose" @manager="showEverything" />
+      </template>
+      <template v-else #content>
+        <LayerPickerList :selected="layer.layerId" autofocus @choose="choose" @manager="showEverything" />
+      </template>
+    </component>
 
-            <button
-              v-for="entry in group.entries"
-              :key="entry.layer.id"
-              type="button"
-              class="hover:bg-ink-800 flex w-full items-center gap-2 px-2.5 py-1 text-left"
-              :class="entry.layer.id === layer.layerId ? 'bg-accent/10' : ''"
-              role="option"
-              :aria-selected="entry.layer.id === layer.layerId"
-              @click="choose(entry.layer)"
-            >
-              <span class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot" />
-              <span class="text-ink-50 min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            </button>
-          </div>
-
-          <p v-if="groups.length === 0" class="text-ink-400 px-2.5 py-3 text-xs">No layer matches “{{ query }}”.</p>
-        </div>
-
-        <!-- The way out to the wordy surface, and the only trace of what was filtered out. One
-             line: the count is a nudge, not an explanation, and the manager does the explaining. -->
-        <button
-          type="button"
-          class="border-ink-800 text-ink-400 hover:text-ink-50 flex shrink-0 items-center gap-1.5 border-t px-2.5 py-1.5 text-[11px] whitespace-nowrap"
-          :title="gatedCount > 0 ? `${gatedCount} more layers need an API key` : 'Notes, licences and keys'"
-          @click="showEverything"
-        >
-          <span class="flex-1 text-left">Layer manager →</span>
-          <span v-if="gatedCount > 0" class="border-ink-700 rounded border px-1">+{{ gatedCount }} with a key</span>
-        </button>
-      </div>
-    </Teleport>
+    <!-- On a narrow screen in swipe mode each side of the seam has about 170px of chrome, and the
+         control needs about 250 that it cannot wrap. Rather than run under the seam, it waits in the
+         layer manager, which has the same control for every pane; the status chip keeps the date. -->
+    <TimeControl v-if="current?.time" :layer="current" :time="layer.time" :class="{ 'max-md:hidden': mode === 'sw' }" @update="pickTime" />
   </div>
 </template>

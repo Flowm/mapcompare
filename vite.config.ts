@@ -1,7 +1,7 @@
 /// <reference types="vitest/config" />
 import { execSync } from "node:child_process";
 
-import tailwindcss from "@tailwindcss/vite";
+import ui from "@nuxt/ui/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
@@ -25,7 +25,32 @@ export default defineConfig({
   preview: { port, strictPort: port !== undefined },
   plugins: [
     vue(),
-    tailwindcss(),
+    ui({
+      // Composables are imported. The declarations auto-import writes exist only where Vite
+      // has run, so an unimported composable would pass vue-tsc locally and fail in CI.
+      autoImport: false,
+      // A single view with the URL as its state: there is no vue-router, so links render as <a>.
+      router: false,
+      // Dark-only, set by `class="dark"` in index.html. Nuxt UI's colour mode follows the OS and
+      // would strip that class on a light-mode system, turning the chrome white over the imagery.
+      colorMode: false,
+      ui: {
+        // `ink` is the app's own near-black scale, defined in style.css. The status colours are
+        // the -400 shades dark mode uses, matching the licence tiers they replaced.
+        colors: { primary: "sky", neutral: "ink", success: "emerald", warning: "amber", error: "red" },
+        // A shortcut badge means nothing without a keyboard, wherever it appears.
+        kbd: { base: "pointer-coarse:hidden" },
+        // Every drawer opens from the bottom, so its last row must clear the home indicator.
+        drawer: { slots: { container: "pb-[max(--spacing(4),env(safe-area-inset-bottom))]" } },
+      },
+      // Bundle every icon the app names, .ts data included. An icon the scan misses is
+      // fetched from api.iconify.design at runtime, which fails offline and tells a
+      // third party which page a visitor is on.
+      // Theme CSS only for the components the app uses, found by their tags: about 40% less CSS.
+      // LayerPicker renders Drawer and Popover through `<component :is>`, which no tag names.
+      experimental: { componentDetection: ["Drawer", "Popover"] },
+      icon: { clientBundle: { scan: { globInclude: ["**/*.{vue,ts}"] } } },
+    }),
     VitePWA({
       registerType: "prompt",
       manifest: {
@@ -88,7 +113,9 @@ export default defineConfig({
           // single chunk and defeat Rolldown's default dynamic-import splitting.
           groups: [
             { name: "vue", test: /@vue|@vueuse/, priority: 60 },
-            { name: "maplibre", test: /maplibre-gl/, priority: 40 },
+            { name: "ui", test: /@nuxt\/ui|reka-ui|@tanstack/, priority: 50 },
+            { name: "icons", test: /@iconify/, priority: 40 },
+            { name: "maplibre", test: /maplibre-gl/, priority: 30 },
             { name: "vendor", test: /node_modules/, priority: 10 },
           ],
         },

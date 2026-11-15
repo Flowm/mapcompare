@@ -24,6 +24,8 @@ const props = defineProps<{
    * credit rather than merely look untidy.
    */
   side?: "left" | "right";
+  /** How wide the chrome may grow before it would run under the other pane (see `chromeMaxWidth`). */
+  chromeMaxWidth?: string;
 }>();
 
 const container = ref<HTMLDivElement>();
@@ -159,7 +161,11 @@ useResizeObserver(container, () => map.value?.resize());
     <!-- Chips and credit share the bottom corner on `side`, beneath the picker MapDeck places at
          the top of the same side. Keeping them together on one side is what guarantees they stay
          inside the visible region when the top pane is clipped. -->
-    <div class="pointer-events-none absolute bottom-1 z-10 flex max-w-full flex-col gap-1" :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'">
+    <div
+      class="pointer-events-none absolute bottom-1 z-10 flex flex-col gap-1"
+      :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'"
+      :style="{ maxWidth: chromeMaxWidth ?? '100%' }"
+    >
       <div v-if="layerDef" class="pointer-events-auto">
         <PaneStatus :layer="layerDef" :time="appliedTime" :ended="ended" :failed-tiles="failed" />
       </div>
@@ -173,10 +179,10 @@ useResizeObserver(container, () => map.value?.resize());
     <div v-if="resolved.state === 'missing-key'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">{{ resolved.layerLabel }} needs an API key</p>
-        <p class="text-ink-400 mt-2 text-xs leading-relaxed">
-          Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste a key in Settings.
+        <p class="text-muted mt-2 text-xs leading-relaxed">
+          Set <code class="text-default font-mono">{{ resolved.key }}</code> in <code class="text-default font-mono">.env.development</code>, or paste one under API keys.
         </p>
-        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-accent mt-3 inline-block text-xs hover:underline">
+        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-3 inline-block text-xs hover:underline">
           Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗
         </a>
       </div>
@@ -185,13 +191,13 @@ useResizeObserver(container, () => map.value?.resize());
     <div v-else-if="resolved.state === 'error'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">Could not load this layer</p>
-        <p class="text-ink-400 mt-2 font-mono text-xs leading-relaxed break-words">{{ resolved.message }}</p>
+        <p class="text-muted mt-2 font-mono text-xs leading-relaxed break-words">{{ resolved.message }}</p>
       </div>
     </div>
 
     <div v-else-if="resolved.state === 'unknown-layer'" class="bg-ink-950/85 absolute inset-0 grid place-items-center p-6 text-center">
-      <p class="text-ink-400 max-w-xs text-sm">
-        Unknown layer <code class="text-ink-200 font-mono">{{ resolved.layerId }}</code>
+      <p class="text-muted max-w-xs text-sm">
+        Unknown layer <code class="text-default font-mono">{{ resolved.layerId }}</code>
       </p>
     </div>
   </div>

@@ -15,32 +15,16 @@
 export type Severity = "ok" | "warn" | "bad";
 
 export interface SeverityClasses {
+  /** The Nuxt UI colour a badge or button carries for it. */
+  color: "success" | "warning" | "error";
   /** The bare status dot in a list row. */
   dot: string;
   /** Inline text alongside a label. */
   text: string;
-  /** A bordered, backdrop-blurred chip sitting over the map. */
-  chip: string;
 }
 
 export const SEVERITY_CLASSES: Record<Severity, SeverityClasses> = {
-  ok: {
-    dot: "bg-tier-open",
-    text: "text-tier-open",
-    chip: "border-tier-open/40 bg-ink-950/75 text-tier-open",
-  },
-  warn: {
-    dot: "bg-tier-terms",
-    text: "text-tier-terms",
-    chip: "border-tier-terms/40 bg-ink-950/75 text-tier-terms",
-  },
-  bad: {
-    dot: "bg-tier-restricted",
-    text: "text-tier-restricted",
-    chip: "border-tier-restricted/40 bg-ink-950/75 text-tier-restricted",
-  },
+  ok: { color: "success", dot: "bg-success", text: "text-success" },
+  warn: { color: "warning", dot: "bg-warning", text: "text-warning" },
+  bad: { color: "error", dot: "bg-error", text: "text-error" },
 };
-
-export function severityClasses(severity: Severity): SeverityClasses {
-  return SEVERITY_CLASSES[severity];
-}

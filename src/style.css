@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@nuxt/ui";
 
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/jetbrains-mono";
@@ -12,30 +13,51 @@
 
 /* Dark-only: this is an imagery viewer, and a light chrome fights the imagery for
    attention. No theme toggle, so the palette is hardcoded and color-scheme is fixed. */
-@theme {
+@theme static {
   --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
-  /* Chrome sits on top of imagery, so the surface scale is deliberately near-black
-     with low-alpha overlays rather than opaque panels. */
-  --color-ink-950: #05070a;
-  --color-ink-900: #0b0f14;
-  --color-ink-800: #141a22;
-  --color-ink-700: #1f2833;
-  --color-ink-600: #2d3947;
-  --color-ink-400: #64748b;
-  --color-ink-200: #cbd5e1;
+  /* Chrome sits on top of imagery, so the surface scale is deliberately near-black with
+     low-alpha overlays rather than opaque panels. A full 50-950 scale, because Nuxt UI uses it
+     as its `neutral` (vite.config.ts) and reads every step. `static` emits all of them, since
+     Nuxt UI references them from its own CSS where the scanner cannot see. */
   --color-ink-50: #f8fafc;
-
-  --color-accent: #38bdf8;
-
-  /* Licence tiers — see lib/layers/types.ts LicenceTier */
-  --color-tier-open: #34d399;
-  --color-tier-licensed: #34d399;
-  --color-tier-terms: #fbbf24;
-  --color-tier-metered: #fbbf24;
-  --color-tier-restricted: #f87171;
+  --color-ink-100: #e2e8f0;
+  --color-ink-200: #cbd5e1;
+  --color-ink-300: #94a3b8;
+  --color-ink-400: #64748b;
+  --color-ink-500: #475569;
+  --color-ink-600: #2d3947;
+  --color-ink-700: #1f2833;
+  --color-ink-800: #141a22;
+  --color-ink-900: #0b0f14;
+  --color-ink-950: #05070a;
 }
+
+/* Nuxt UI's dark surfaces start one step lighter than this app's: its page is neutral-900 and its
+   borders neutral-800. Shifted down a step so overlays and chrome keep the near-black of before. */
+.dark {
+  --ui-bg: var(--color-ink-950);
+  --ui-bg-muted: var(--color-ink-900);
+  --ui-bg-elevated: var(--color-ink-900);
+  --ui-bg-accented: var(--color-ink-800);
+  --ui-border: var(--color-ink-700);
+  --ui-border-muted: var(--color-ink-800);
+  --ui-border-accented: var(--color-ink-600);
+
+  /* The text steps shift the other way. Each ink step is a shade darker than Nuxt UI's slate, so
+     its defaults (dimmed 500, muted 400) fell below readable contrast on these surfaces at the
+     10-11px the chrome uses. One step up restores the contrast Nuxt UI intends. */
+  --ui-text-dimmed: var(--color-ink-400);
+  --ui-text-muted: var(--color-ink-300);
+  --ui-text-toned: var(--color-ink-200);
+  --ui-text: var(--color-ink-100);
+}
+
+/* Laid out for a phone: a narrow screen, or a phone on its side, which is wide but too short for
+   a side column. Must match COMPACT_QUERY in useViewport.ts, which swaps the components. */
+@custom-variant compact (@media (width < 48rem) or (height < 30rem));
+@custom-variant roomy (@media (width >= 48rem) and (height >= 30rem));
 
 :root {
   color-scheme: dark;

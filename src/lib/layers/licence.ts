@@ -1,6 +1,6 @@
-import type { Severity } from "@/lib/severity";
+import { SEVERITY_CLASSES, type Severity, type SeverityClasses } from "@/lib/severity";
 
-import type { LicenceTier } from "./types";
+import type { Layer, LicenceTier } from "./types";
 
 /**
  * Chip labels and the sentence behind each licence tier.
@@ -52,4 +52,9 @@ export const LICENCE_TIERS: Record<LicenceTier, LicenceTierInfo> = {
 
 export function licenceInfo(tier: LicenceTier): LicenceTierInfo {
   return LICENCE_TIERS[tier];
+}
+
+/** How a Layer's licence looks: the dot, text and badge colour for its tier's severity. */
+export function licenceClasses(layer: Pick<Layer, "licence">): SeverityClasses {
+  return SEVERITY_CLASSES[licenceInfo(layer.licence.tier).severity];
 }

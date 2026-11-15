@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isMode, isStacked, layoutFor, MODE_LABELS, MODES, paneCountFor } from "./mode";
+import { aspectOf, isMode, isStacked, layoutFor, MODE_KEYS, MODE_LABELS, MODES, modeForKey, paneCountFor } from "./mode";
 
 describe("isMode", () => {
   it("accepts every declared mode", () => {
@@ -49,22 +49,59 @@ describe("MODE_LABELS", () => {
 });
 
 describe("layoutFor", () => {
-  it("gives every mode a layout, with no default arm to hide a new one", () => {
-    for (const mode of MODES) expect(layoutFor(mode), mode).toMatch(/^grid-cols-\d grid-rows-\d$/);
+  it("gives every mode a layout in both aspects, with no default arm to hide a new one", () => {
+    for (const aspect of ["landscape", "portrait"] as const) {
+      for (const mode of MODES) expect(layoutFor(mode, aspect), `${mode} ${aspect}`).toMatch(/^grid-cols-\d grid-rows-\d$/);
+    }
   });
 
   it("tiles the grid modes to match their pane count", () => {
     // The tracks a mode declares and the panes it asks for must describe the same deck.
-    for (const mode of MODES) {
-      const layout = layoutFor(mode);
-      const cols = Number(/grid-cols-(\d)/.exec(layout)![1]);
-      const rows = Number(/grid-rows-(\d)/.exec(layout)![1]);
-      if (isStacked(mode)) continue; // stacked panes are absolutely positioned, not tiled
-      expect(cols * rows, mode).toBe(paneCountFor(mode));
+    for (const aspect of ["landscape", "portrait"] as const) {
+      for (const mode of MODES) {
+        const layout = layoutFor(mode, aspect);
+        const cols = Number(/grid-cols-(\d)/.exec(layout)![1]);
+        const rows = Number(/grid-rows-(\d)/.exec(layout)![1]);
+        if (isStacked(mode)) continue; // stacked panes are absolutely positioned, not tiled
+        expect(cols * rows, `${mode} ${aspect}`).toBe(paneCountFor(mode));
+      }
     }
+  });
+
+  it("stacks the side-by-side modes as rows in a portrait deck", () => {
+    expect(layoutFor("g2", "portrait")).toBe("grid-cols-1 grid-rows-2");
+    expect(layoutFor("g3", "portrait")).toBe("grid-cols-1 grid-rows-3");
+    expect(layoutFor("g4", "portrait")).toBe(layoutFor("g4", "landscape"));
+  });
+
+  it("defaults to landscape, the desktop layout", () => {
+    for (const mode of MODES) expect(layoutFor(mode)).toBe(layoutFor(mode, "landscape"));
   });
 
   it("gives g3 equal tracks, which is what lets pointer offsets be mirrored", () => {
     expect(layoutFor("g3")).toBe("grid-cols-3 grid-rows-1");
+  });
+});
+
+describe("aspectOf", () => {
+  it("is portrait only when taller than wide", () => {
+    expect(aspectOf(375, 700)).toBe("portrait");
+    expect(aspectOf(1200, 700)).toBe("landscape");
+    expect(aspectOf(500, 500)).toBe("landscape");
+  });
+});
+
+describe("modeForKey", () => {
+  it("maps every mode's key back to it, in either case", () => {
+    for (const mode of MODES) {
+      expect(modeForKey(MODE_KEYS[mode])).toBe(mode);
+      expect(modeForKey(MODE_KEYS[mode].toUpperCase())).toBe(mode);
+    }
+  });
+
+  it("ignores every other key", () => {
+    expect(modeForKey("x")).toBeUndefined();
+    expect(modeForKey("5")).toBeUndefined();
+    expect(modeForKey(" ")).toBeUndefined();
   });
 });

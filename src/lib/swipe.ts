@@ -70,3 +70,23 @@ export function paneSide(mode: Mode, index: number): "left" | "right" {
   if (!isStacked(mode)) return "right";
   return index === 0 ? "left" : "right";
 }
+
+/** The CSS custom property MapDeck sets to the divider position, as a fraction of the deck. */
+export const SWIPE_VAR = "--swipe";
+
+/**
+ * The widest a pane's chrome may be, as a CSS `max-width`, or undefined when it may use the pane.
+ *
+ * In swipe mode each pane is visible on one side of the divider only, and its chrome sits on that
+ * side (`paneSide`). Chrome wider than its side runs under the other pane and is cut off at the
+ * seam — on a phone that is the credit, which must stay legible. So the limit follows the divider:
+ * dragged to 30%, the left pane's chrome gets 30% of the deck and the right pane's 70%.
+ *
+ * The divider position is read from `SWIPE_VAR` rather than baked in, so the expression is the same
+ * on every frame of a drag and nothing re-renders for it; only the variable changes.
+ */
+export function chromeMaxWidth(mode: Mode, index: number): string | undefined {
+  if (mode !== "sw") return undefined;
+  const share = paneSide(mode, index) === "left" ? `var(${SWIPE_VAR})` : `(1 - var(${SWIPE_VAR}))`;
+  return `max(0px, calc(${share} * 100% - 1rem))`;
+}
