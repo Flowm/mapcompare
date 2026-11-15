@@ -27,8 +27,13 @@ const rows = computed(() => {
 });
 
 const drafts = ref<Partial<Record<ApiKeyName, string>>>({});
-/** Nuxt UI's UInput exposes the native element as `inputRef`. */
-const inputs = ref<Record<string, { inputRef?: HTMLInputElement } | undefined>>({});
+
+/**
+ * Each key's input is found by id, not by a component ref. A ref on a Nuxt UI component is only
+ * typed through the generated components.d.ts, which a fresh checkout (CI) does not have. The
+ * field's label follows the id, so this is also what links the two.
+ */
+const inputId = (name: ApiKeyName) => `api-key-${name}`;
 
 watch(
   open,
@@ -44,7 +49,7 @@ watch(
  * content is mounted, so the dialog does not move focus to its close button afterwards.
  */
 function focusRequestedKey(event: Event) {
-  const field = props.focusKey ? inputs.value[props.focusKey]?.inputRef : undefined;
+  const field = props.focusKey ? document.getElementById(inputId(props.focusKey)) : null;
   if (!field) return;
   event.preventDefault();
   field.focus();
@@ -87,7 +92,7 @@ const SOURCE_TEXT = {
 
             <div class="flex items-center gap-1.5">
               <UInput
-                :ref="(el) => (inputs[row.name] = (el as { inputRef?: HTMLInputElement } | null) ?? undefined)"
+                :id="inputId(row.name)"
                 v-model="drafts[row.name]"
                 type="password"
                 autocomplete="off"
