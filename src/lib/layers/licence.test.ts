@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { licenceInfo, LICENCE_TIERS } from "./licence";
+import { LICENCE_TIERS, licenceClasses, licenceInfo } from "./licence";
 import { LAYERS } from "./registry";
 
 describe("LICENCE_TIERS", () => {
@@ -62,5 +62,12 @@ describe("registry licences", () => {
     const mapbox = LAYERS.find((p) => p.id === "mapbox.satellite")!;
     expect(mapbox.licence.tier).toBe("metered");
     expect(mapbox.licence.note).toMatch(/bill/i);
+  });
+});
+
+describe("licenceClasses", () => {
+  it("styles every Layer by its tier's severity", () => {
+    const colours = { ok: "success", warn: "warning", bad: "error" } as const;
+    for (const layer of LAYERS) expect(licenceClasses(layer).color, layer.id).toBe(colours[licenceInfo(layer.licence.tier).severity]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampSwipe, clipInsetFor, dividerPercent, fractionFromPointer, MIN_INSET, nudge, paneSide } from "./swipe";
+import { chromeMaxWidth, clampSwipe, clipInsetFor, dividerPercent, fractionFromPointer, MIN_INSET, nudge, paneSide } from "./swipe";
 
 const RECT = { left: 100, width: 800 };
 
@@ -105,5 +105,24 @@ describe("paneSide", () => {
     expect(clampSwipe(1)).toBe(1 - MIN_INSET);
     expect(clampSwipe(Number.NaN)).toBe(0.5);
     expect(clampSwipe(0.5)).toBe(0.5);
+  });
+});
+
+describe("chromeMaxWidth", () => {
+  it("leaves chrome unbounded outside swipe mode", () => {
+    for (const mode of ["g1", "g2", "g3", "g4", "bl"] as const) expect(chromeMaxWidth(mode, 0, 0.3)).toBeUndefined();
+  });
+
+  it("gives each pane the side of the divider it is visible on", () => {
+    expect(chromeMaxWidth("sw", 0, 0.3)).toBe("max(0px, calc(30.000% - 1rem))");
+    expect(chromeMaxWidth("sw", 1, 0.3)).toBe("max(0px, calc(70.000% - 1rem))");
+  });
+
+  it("follows the same side rule as paneSide, so chrome is limited on the side it is drawn", () => {
+    for (const position of [0.1, 0.5, 0.9]) {
+      const left = chromeMaxWidth("sw", 0, position);
+      expect(paneSide("sw", 0)).toBe("left");
+      expect(left).toContain(`${(position * 100).toFixed(3)}%`);
+    }
   });
 });

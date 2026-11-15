@@ -64,7 +64,10 @@ function zoomToNative() {
     </StatusChip>
     <StatusChip v-else-if="shownTime" mono>
       {{ shownTime }}
-      <template #detail>The time of the picture this pane shows.</template>
+      <template #detail>
+        <p>The time of the picture this pane shows.</p>
+        <p v-if="layer.time">“latest” follows the newest picture instead of pinning this one, and a shared link keeps following it.</p>
+      </template>
     </StatusChip>
 
     <StatusChip v-if="ended" color="warning">

@@ -174,22 +174,16 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     size="sm"
     color="neutral"
     variant="outline"
-    class="text-dimmed w-56 justify-start font-normal lg:w-80"
+    class="text-dimmed w-40 justify-start font-normal lg:w-56 xl:w-80"
     aria-label="Search a place or paste coordinates"
     @click="open = true"
   >
     <span class="truncate">Search a place or coordinates</span>
     <!-- The only advertisement the shortcut gets; without it nobody discovers `/`. -->
-    <template #trailing><UKbd value="/" class="ml-auto" /></template>
+    <template #trailing><UKbd value="/" class="ml-auto pointer-coarse:hidden" /></template>
   </UButton>
 
-  <UModal
-    v-model:open="open"
-    title="Go to a place"
-    description="Search a place by name, paste coordinates, or pick a preset."
-    :fullscreen="isCompact"
-    :ui="{ content: 'sm:max-w-xl' }"
-  >
+  <UModal v-model:open="open" title="Go to" description="Search a place by name, paste a coordinate, or pick a preset." :fullscreen="isCompact" :ui="{ content: 'sm:max-w-xl' }">
     <template #content>
       <div class="contents" @keydown.enter.capture="onEnter">
         <UCommandPalette

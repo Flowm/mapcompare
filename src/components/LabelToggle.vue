@@ -5,7 +5,7 @@ const { labels, setLabels } = useAppState();
 </script>
 
 <template>
-  <UTooltip text="Overlay place names, roads and boundaries from OpenFreeMap on every pane">
+  <UTooltip text="Map labels from OpenFreeMap">
     <UButton
       icon="i-lucide-tags"
       label="Labels"

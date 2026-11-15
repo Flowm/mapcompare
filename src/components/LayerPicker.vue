@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// Imported rather than auto-registered: `<component :is>` needs the component objects themselves.
 import UDrawer from "@nuxt/ui/components/Drawer.vue";
 import UPopover from "@nuxt/ui/components/Popover.vue";
 import { computed, ref } from "vue";
@@ -7,10 +8,9 @@ import LayerPickerList from "@/components/LayerPickerList.vue";
 import TimeControl from "@/components/TimeControl.vue";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useViewport } from "@/composables/useViewport";
-import { licenceInfo } from "@/lib/layers/licence";
+import { licenceClasses } from "@/lib/layers/licence";
 import { getLayer } from "@/lib/layers/registry";
 import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
-import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * A pane's own layer switcher: the fastest path from "this pane" to "that layer".
@@ -31,7 +31,7 @@ import { SEVERITY_CLASSES } from "@/lib/severity";
 const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "right" }>();
 const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
-const { activePane, openPanel, focusPane } = useLayerPanel();
+const { activePane, openManager, focusPane } = useLayerPanel();
 const { isCompact } = useViewport();
 
 const open = ref(false);
@@ -64,7 +64,7 @@ function pickTime(time: string | undefined) {
 
 function showEverything() {
   open.value = false;
-  openPanel();
+  openManager();
 }
 </script>
 
@@ -78,7 +78,7 @@ function showEverything() {
         :aria-label="`Layer for pane ${index + 1}: ${current?.label ?? layer.layerId}`"
       >
         <span class="rounded px-1 font-mono text-[10px]" :class="activePane === index ? 'bg-primary text-ink-950' : 'bg-ink-800 text-ink-200'">{{ index + 1 }}</span>
-        <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="SEVERITY_CLASSES[licenceInfo(current.licence.tier).severity].dot" />
+        <span v-if="current" class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(current).dot" />
         <span class="truncate">{{ current?.label ?? layer.layerId }}</span>
         <UIcon name="i-lucide-chevron-down" class="text-ink-400 size-3.5 shrink-0" />
       </button>

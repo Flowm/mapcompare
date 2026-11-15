@@ -5,10 +5,9 @@ import { computed, ref } from "vue";
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { groupLayers, layerStatuses, providerLabel } from "@/lib/layers/availability";
-import { licenceInfo } from "@/lib/layers/licence";
+import { licenceClasses } from "@/lib/layers/licence";
 import { LAYERS } from "@/lib/layers/registry";
 import type { Layer } from "@/lib/layers/types";
-import { SEVERITY_CLASSES } from "@/lib/severity";
 
 /**
  * The searchable list inside a pane's picker, the same in the desktop popover and the phone drawer.
@@ -43,7 +42,7 @@ const groups = computed<CommandPaletteGroup[]>(() => {
     items: group.entries.map((entry): LayerItem => ({
       label: entry.layer.label,
       active: entry.layer.id === props.selected,
-      dot: SEVERITY_CLASSES[licenceInfo(entry.layer.licence.tier).severity].dot,
+      dot: licenceClasses(entry.layer).dot,
       onSelect: () => emit("choose", entry.layer),
     })),
   }));

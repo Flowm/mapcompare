@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useViewport } from "@/composables/useViewport";
@@ -32,17 +32,23 @@ const inputs = ref<Record<string, { inputRef?: HTMLInputElement } | undefined>>(
 
 watch(
   open,
-  async (isOpen) => {
-    if (!isOpen) return;
-    drafts.value = { ...overrides.value };
-    // Opened from a specific provider's "Add key" button: land on that field rather than making
-    // the user hunt for it in the list. Two ticks: the modal mounts its content, then the fields.
-    await nextTick();
-    await nextTick();
-    if (props.focusKey) inputs.value[props.focusKey]?.inputRef?.focus();
+  (isOpen) => {
+    if (isOpen) drafts.value = { ...overrides.value };
   },
   { immediate: true },
 );
+
+/**
+ * Opened from a specific provider's "Add key" button: land on that field rather than making the
+ * user hunt for it in the list. Done in the dialog's own opening-focus hook, which runs once the
+ * content is mounted, so the dialog does not move focus to its close button afterwards.
+ */
+function focusRequestedKey(event: Event) {
+  const field = props.focusKey ? inputs.value[props.focusKey]?.inputRef : undefined;
+  if (!field) return;
+  event.preventDefault();
+  field.focus();
+}
 
 function save(name: ApiKeyName) {
   setKey(name, drafts.value[name] ?? "");
@@ -61,7 +67,7 @@ const SOURCE_TEXT = {
 </script>
 
 <template>
-  <UModal v-model:open="open" title="API keys" :fullscreen="isCompact" :ui="{ content: 'sm:max-w-[38rem]' }">
+  <UModal v-model:open="open" title="API keys" :fullscreen="isCompact" :ui="{ content: 'sm:max-w-[38rem]' }" :content="{ onOpenAutoFocus: focusRequestedKey }">
     <template #body>
       <div class="space-y-4">
         <p class="text-ink-400 text-xs leading-relaxed">
@@ -69,36 +75,38 @@ const SOURCE_TEXT = {
         </p>
 
         <div v-for="row in rows" :key="row.name" class="border-ink-700/70 rounded border p-3">
-          <div class="flex items-baseline justify-between gap-2">
-            <code class="text-ink-200 font-mono text-xs">{{ row.name }}</code>
-            <span class="text-ink-400 shrink-0 text-[10px]">{{ row.freeTier }}</span>
-          </div>
+          <UFormField
+            :hint="row.freeTier"
+            :description="`Unlocks ${row.layers.map((p) => p.label).join(', ')}`"
+            size="sm"
+            :ui="{ description: 'text-[11px]', hint: 'text-[10px]' }"
+          >
+            <template #label>
+              <code class="text-ink-200 font-mono text-xs">{{ row.name }}</code>
+            </template>
 
-          <p class="text-ink-400 mt-1 text-[11px]">Unlocks {{ row.layers.map((p) => p.label).join(", ") }}</p>
+            <div class="flex items-center gap-1.5">
+              <UInput
+                :ref="(el) => (inputs[row.name] = (el as { inputRef?: HTMLInputElement } | null) ?? undefined)"
+                v-model="drafts[row.name]"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                :placeholder="sources[row.name] === 'build' ? 'Override the built-in key…' : 'Paste a key…'"
+                class="min-w-0 flex-1"
+                :ui="{ base: 'font-mono' }"
+                @change="save(row.name)"
+                @keydown.enter.prevent="save(row.name)"
+              />
+              <UButton color="neutral" variant="outline" label="Save" @click="save(row.name)" />
+              <UButton v-if="sources[row.name] === 'user'" color="neutral" variant="ghost" label="Clear" @click="clear(row.name)" />
+            </div>
 
-          <div class="mt-2 flex items-center gap-1.5">
-            <UInput
-              :ref="(el) => (inputs[row.name] = (el as { inputRef?: HTMLInputElement } | null) ?? undefined)"
-              v-model="drafts[row.name]"
-              type="password"
-              autocomplete="off"
-              spellcheck="false"
-              size="sm"
-              :placeholder="sources[row.name] === 'build' ? 'Override the built-in key…' : 'Paste a key…'"
-              class="min-w-0 flex-1"
-              :ui="{ base: 'font-mono' }"
-              @change="save(row.name)"
-              @keydown.enter.prevent="save(row.name)"
-            />
-            <UButton size="sm" color="neutral" variant="outline" label="Save" @click="save(row.name)" />
-            <UButton v-if="sources[row.name] === 'user'" size="sm" color="neutral" variant="ghost" label="Clear" @click="clear(row.name)" />
-          </div>
-
-          <p class="mt-1.5 text-[11px]" :class="sources[row.name] === 'none' ? 'text-ink-400' : 'text-success'">
-            {{ SOURCE_TEXT[sources[row.name]] }}
-          </p>
-
-          <a v-if="row.keyUrl" :href="row.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-1 inline-block text-[11px] hover:underline">Get a key ↗</a>
+            <template #help>
+              <span class="text-[11px]" :class="sources[row.name] === 'none' ? 'text-muted' : 'text-success'">{{ SOURCE_TEXT[sources[row.name]] }}</span>
+              <a v-if="row.keyUrl" :href="row.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary ml-2 text-[11px] hover:underline">Get a key ↗</a>
+            </template>
+          </UFormField>
         </div>
 
         <!-- Stated plainly rather than buried: a browser-side map key is never actually secret, and

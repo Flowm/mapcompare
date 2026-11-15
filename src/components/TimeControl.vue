@@ -101,7 +101,7 @@ const fieldUi = computed(() => ({ base: ["font-mono", props.dense ? "text-[10px]
         @click="step(next)"
       />
     </UTooltip>
-    <UTooltip text="Always show the newest picture, also in a shared link">
+    <UTooltip text="Follow the latest picture">
       <UButton
         label="latest"
         :color="time === undefined ? 'primary' : 'neutral'"

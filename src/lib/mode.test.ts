@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aspectOf, isMode, isStacked, layoutFor, MODE_LABELS, MODES, paneCountFor } from "./mode";
+import { aspectOf, isMode, isStacked, layoutFor, MODE_KEYS, MODE_LABELS, MODES, modeForKey, paneCountFor } from "./mode";
 
 describe("isMode", () => {
   it("accepts every declared mode", () => {
@@ -88,5 +88,20 @@ describe("aspectOf", () => {
     expect(aspectOf(375, 700)).toBe("portrait");
     expect(aspectOf(1200, 700)).toBe("landscape");
     expect(aspectOf(500, 500)).toBe("landscape");
+  });
+});
+
+describe("modeForKey", () => {
+  it("maps every mode's key back to it, in either case", () => {
+    for (const mode of MODES) {
+      expect(modeForKey(MODE_KEYS[mode])).toBe(mode);
+      expect(modeForKey(MODE_KEYS[mode].toUpperCase())).toBe(mode);
+    }
+  });
+
+  it("ignores every other key", () => {
+    expect(modeForKey("x")).toBeUndefined();
+    expect(modeForKey("5")).toBeUndefined();
+    expect(modeForKey(" ")).toBeUndefined();
   });
 });

@@ -15,13 +15,11 @@ import { useAppState } from "@/composables/useAppState";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useShare } from "@/composables/useShare";
-import { useViewport } from "@/composables/useViewport";
 import type { ApiKeyName } from "@/lib/layers/types";
 
 const { camera, labels, setLabels, installHistoryListener } = useAppState();
-const { panelOpen, drawerOpen, layersOpen, togglePanel, closePanel } = useLayerPanel();
-const { isCompact } = useViewport();
-const share = useShare();
+const { managerOpen, toggleManager } = useLayerPanel();
+const { share } = useShare();
 
 useKeyboardShortcuts();
 
@@ -41,8 +39,15 @@ function openKeys(key?: ApiKeyName) {
 /** On a phone the header has room for the essentials only; the rest waits behind this menu. */
 const overflowItems = computed<DropdownMenuItem[][]>(() => [
   [
-    { label: "Copy link", icon: "i-lucide-link", onSelect: share },
-    { label: "Place labels", icon: "i-lucide-tags", type: "checkbox", checked: labels.value, onUpdateChecked: (checked: boolean) => setLabels(checked) },
+    { label: "Copy link", icon: "i-lucide-link", onSelect: () => share("toast") },
+    {
+      label: "Map labels",
+      description: "Names, roads and borders from OpenFreeMap",
+      icon: "i-lucide-tags",
+      type: "checkbox",
+      checked: labels.value,
+      onUpdateChecked: (checked: boolean) => setLabels(checked),
+    },
   ],
   [
     { label: "API keys", icon: "i-lucide-key-round", onSelect: () => openKeys() },
@@ -62,7 +67,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
         <LocationSearch />
 
         <div class="ml-auto flex items-center gap-2">
-          <span class="text-ink-400 hidden font-mono text-[11px] tabular-nums xl:inline">
+          <span class="text-ink-400 hidden font-mono text-[11px] tabular-nums md:inline">
             {{ camera.center[1].toFixed(5) }}, {{ camera.center[0].toFixed(5) }} · z{{ camera.zoom.toFixed(2) }}
           </span>
 
@@ -73,21 +78,21 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
 
           <!-- One button, because everything about layers lives behind it: the catalogue, the
                licence notes, the API keys and the sources table. A side column on desktop, a
-               drawer on a phone; useLayerPanel decides which. -->
+               drawer on a phone; LayerManager decides which. -->
           <UTooltip text="Layer manager">
             <UButton
               icon="i-lucide-layers"
               label="Layers"
               size="sm"
-              :color="layersOpen ? 'primary' : 'neutral'"
-              :variant="layersOpen ? 'solid' : 'outline'"
-              :aria-pressed="layersOpen"
+              :color="managerOpen ? 'primary' : 'neutral'"
+              :variant="managerOpen ? 'solid' : 'outline'"
+              :aria-pressed="managerOpen"
               :ui="{ label: 'max-lg:sr-only' }"
-              @click="togglePanel"
+              @click="toggleManager"
             />
           </UTooltip>
 
-          <UDropdownMenu :items="overflowItems" :content="{ align: 'end' }" class="md:hidden">
+          <UDropdownMenu :items="overflowItems" :content="{ align: 'end' }">
             <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="ghost" aria-label="More" class="md:hidden" />
           </UDropdownMenu>
         </div>
@@ -99,24 +104,8 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
           <MapDeck />
         </main>
 
-        <aside v-if="panelOpen && !isCompact" class="border-default bg-ink-950 flex w-[18rem] shrink-0 flex-col border-l" aria-label="Layer manager">
-          <div class="border-default flex shrink-0 items-center gap-1 border-b px-2.5 py-1">
-            <h2 class="text-toned flex-1 text-xs font-medium">Layers</h2>
-            <UTooltip text="Hide the panel — each pane keeps its own picker">
-              <UButton icon="i-lucide-x" size="xs" color="neutral" variant="ghost" aria-label="Hide the layer manager" @click="closePanel" />
-            </UTooltip>
-          </div>
-          <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
-        </aside>
+        <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
       </div>
-
-      <!-- The phone's shell for the same content. Half height first, so the map stays in view while
-           layers are tried; drag up for the whole catalogue. -->
-      <UDrawer v-if="isCompact" v-model:open="drawerOpen" title="Layers" :snap-points="[0.55, 1]" :ui="{ content: 'h-[95dvh]', body: 'flex min-h-0 flex-col p-0 sm:p-0' }">
-        <template #body>
-          <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
-        </template>
-      </UDrawer>
 
       <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
       <SourcesDialog v-model:open="sourcesOpen" />

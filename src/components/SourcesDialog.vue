@@ -4,7 +4,7 @@ import { BUILD_DATE, BUILD_SHA } from "@/env";
 import { sanitizeAttributionHtml } from "@/lib/attribution";
 import { providerLabel } from "@/lib/layers/availability";
 import { describeAttribution } from "@/lib/layers/buildStyle";
-import { licenceInfo, LICENCE_TIERS } from "@/lib/layers/licence";
+import { LICENCE_TIERS, licenceClasses, licenceInfo } from "@/lib/layers/licence";
 import { LAYERS } from "@/lib/layers/registry";
 import { SEVERITY_CLASSES } from "@/lib/severity";
 
@@ -46,17 +46,10 @@ function coverage(maxzoom: number, note: string | undefined): string {
                 <!-- Measured, not documented. Several providers advertise more than they serve. -->
                 <td class="text-ink-400 py-2 pr-3 font-mono">z{{ layer.maxzoom }}</td>
                 <td class="py-2 pr-3">
-                  <a
-                    v-if="layer.licence.url"
-                    :href="layer.licence.url"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    class="hover:underline"
-                    :class="SEVERITY_CLASSES[licenceInfo(layer.licence.tier).severity].text"
-                  >
+                  <a v-if="layer.licence.url" :href="layer.licence.url" target="_blank" rel="noreferrer noopener" class="hover:underline" :class="licenceClasses(layer).text">
                     {{ licenceInfo(layer.licence.tier).label }} ↗
                   </a>
-                  <span v-else :class="SEVERITY_CLASSES[licenceInfo(layer.licence.tier).severity].text">{{ licenceInfo(layer.licence.tier).label }}</span>
+                  <span v-else :class="licenceClasses(layer).text">{{ licenceInfo(layer.licence.tier).label }}</span>
                   <span class="text-ink-600 mt-0.5 block leading-snug">{{ layer.licence.note }}</span>
                 </td>
                 <!-- eslint-disable-next-line vue/no-v-html -- sanitized; links must stay clickable -->

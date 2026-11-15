@@ -80,6 +80,18 @@ export function aspectOf(width: number, height: number): Aspect {
   return height > width ? "portrait" : "landscape";
 }
 
+/**
+ * The key that switches to each mode. One table for the shortcut handler and for the tooltips that
+ * advertise it, so a rebound key cannot leave a tooltip naming the old one.
+ */
+export const MODE_KEYS: Record<Mode, string> = { g1: "1", g2: "2", g3: "3", g4: "4", sw: "s", bl: "b" };
+
+/** The mode a key switches to, case-insensitively, or undefined for any other key. */
+export function modeForKey(key: string): Mode | undefined {
+  const lower = key.toLowerCase();
+  return MODES.find((m) => MODE_KEYS[m] === lower);
+}
+
 export const MODE_LABELS: Record<Mode, string> = {
   g1: "Single",
   g2: "2 panes",

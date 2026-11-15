@@ -8,7 +8,7 @@ import MapPane from "@/components/MapPane.vue";
 import SwipeDivider from "@/components/SwipeDivider.vue";
 import { useAppState } from "@/composables/useAppState";
 import { aspectOf, isStacked, layoutFor } from "@/lib/mode";
-import { clipInsetFor, paneSide } from "@/lib/swipe";
+import { chromeMaxWidth, clipInsetFor, paneSide } from "@/lib/swipe";
 
 /**
  * Owns THE ONLY v-for over panes, keyed by pane index.
@@ -58,11 +58,11 @@ function paneStyle(index: number) {
   <div ref="deck" class="relative h-full w-full overflow-hidden">
     <div class="h-full w-full" :class="isStacked(mode) ? 'relative' : `bg-ink-700 grid gap-px ${gridClass}`">
       <div v-for="(pane, index) in panes" :key="index" :class="isStacked(mode) ? 'absolute inset-0' : 'relative min-h-0 min-w-0'" :style="paneStyle(index)">
-        <MapPane :layer="pane" :side="sideFor(index)" :half="mode === 'sw'" />
+        <MapPane :layer="pane" :side="sideFor(index)" :chrome-max-width="chromeMaxWidth(mode, index, swipe)" />
 
         <!-- Every pane gets its own picker, placed on the same side as the rest of its chrome. -->
         <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-2" :class="sideFor(index) === 'left' ? 'justify-start' : 'justify-end'">
-          <div class="pointer-events-auto" :class="mode === 'sw' ? 'max-w-[calc(50%-1rem)]' : ''">
+          <div class="pointer-events-auto" :style="{ maxWidth: chromeMaxWidth(mode, index, swipe) }">
             <LayerPicker :index="index" :layer="pane" :align="sideFor(index)" @update="setPaneLayer(index, $event)" />
           </div>
         </div>

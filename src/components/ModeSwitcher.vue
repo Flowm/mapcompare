@@ -3,12 +3,18 @@ import type { DropdownMenuItem } from "@nuxt/ui";
 import { computed } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
-import { type Mode, MODE_LABELS } from "@/lib/mode";
+import { type Mode, MODE_KEYS, MODE_LABELS } from "@/lib/mode";
 
 const { mode, setMode } = useAppState();
 
-const GRID_MODES: Mode[] = ["g1", "g2", "g3", "g4"];
-const STACKED_MODES: Mode[] = ["sw", "bl"];
+/**
+ * Two groups: how many panes tile the deck, and the two stacked comparisons. Only the stacked ones
+ * carry a word on desktop; the pane counts read from their icons.
+ */
+const GROUPS: { label: string; modes: Mode[]; labelled: boolean }[] = [
+  { label: "Pane layout", modes: ["g1", "g2", "g3", "g4"], labelled: false },
+  { label: "Comparison mode", modes: ["sw", "bl"], labelled: true },
+];
 
 const ICONS: Record<Mode, string> = {
   g1: "i-lucide-square",
@@ -19,23 +25,10 @@ const ICONS: Record<Mode, string> = {
   bl: "i-lucide-eye",
 };
 
-/** The keyboard shortcut for each mode, from useKeyboardShortcuts. */
-const KEYS: Record<Mode, string> = { g1: "1", g2: "2", g3: "3", g4: "4", sw: "s", bl: "b" };
-
-const HINTS: Partial<Record<Mode, string>> = {
-  sw: "drag the divider",
-  bl: "hold B to peek, Space to flip",
-};
-
-function tooltip(m: Mode): string {
-  const hint = HINTS[m];
-  return hint ? `${MODE_LABELS[m]} — ${hint}` : MODE_LABELS[m];
-}
-
-/** The phone's menu: the same modes, grouped as the two button groups are. */
+/** The phone's menu: the same modes, grouped as the button groups are. */
 const menuItems = computed<DropdownMenuItem[][]>(() =>
-  [GRID_MODES, STACKED_MODES].map((group) =>
-    group.map((m) => ({
+  GROUPS.map((group) =>
+    group.modes.map((m) => ({
       label: MODE_LABELS[m],
       icon: ICONS[m],
       type: "checkbox" as const,
@@ -48,11 +41,12 @@ const menuItems = computed<DropdownMenuItem[][]>(() =>
 
 <template>
   <div class="hidden items-center gap-1.5 md:flex">
-    <UFieldGroup v-for="(group, i) in [GRID_MODES, STACKED_MODES]" :key="i" size="sm" :aria-label="i === 0 ? 'Pane layout' : 'Comparison mode'">
-      <UTooltip v-for="m in group" :key="m" :text="tooltip(m)" :kbds="[KEYS[m]]">
+    <UFieldGroup v-for="group in GROUPS" :key="group.label" size="sm" :aria-label="group.label">
+      <UTooltip v-for="m in group.modes" :key="m" :text="MODE_LABELS[m]" :kbds="[MODE_KEYS[m]]">
         <UButton
           :icon="ICONS[m]"
-          :label="i === 1 ? MODE_LABELS[m] : undefined"
+          :label="group.labelled ? MODE_LABELS[m] : undefined"
+          :ui="{ label: 'max-lg:sr-only' }"
           :color="mode === m ? 'primary' : 'neutral'"
           :variant="mode === m ? 'solid' : 'outline'"
           :aria-label="MODE_LABELS[m]"
@@ -63,7 +57,7 @@ const menuItems = computed<DropdownMenuItem[][]>(() =>
     </UFieldGroup>
   </div>
 
-  <UDropdownMenu :items="menuItems" :content="{ align: 'start' }" class="md:hidden">
+  <UDropdownMenu :items="menuItems" :content="{ align: 'start' }">
     <UButton :icon="ICONS[mode]" trailing-icon="i-lucide-chevron-down" size="sm" color="neutral" variant="outline" :aria-label="`Mode: ${MODE_LABELS[mode]}`" class="md:hidden" />
   </UDropdownMenu>
 </template>

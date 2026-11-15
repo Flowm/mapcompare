@@ -1,26 +1,34 @@
 import { useToast } from "@nuxt/ui/composables/useToast";
+import { useClipboard } from "@vueuse/core";
 
 import { useAppState } from "./useAppState";
 
 /**
  * Copies a link to the exact comparison on screen.
  *
- * A toast rather than a label that flips to "Copied": on a phone the action lives in a menu that
- * has closed by the time the copy lands, so the confirmation needs somewhere of its own to appear.
+ * Two ways to confirm it. The header button flips its own label to "Copied", as it always did. The
+ * phone's overflow menu has closed by the time the copy lands, so it asks for a toast instead.
+ * A failed copy always says so: clipboard access can be denied, or missing over plain http.
  */
 export function useShare() {
   const { sharePermalink } = useAppState();
   const toast = useToast();
+  // `legacy` falls back to execCommand where the async clipboard is unavailable, such as plain http.
+  const { copy, copied } = useClipboard({ copiedDuring: 1600, legacy: true });
 
-  return async function share() {
-    const url = sharePermalink();
+  async function share(confirm: "label" | "toast" = "label") {
     try {
-      await navigator.clipboard.writeText(url);
-      toast.add({ title: "Link copied", description: "It opens this exact comparison.", icon: "i-lucide-check", color: "success", duration: 2000 });
+      await copy(sharePermalink());
     } catch {
-      // Clipboard access can be denied or unavailable over plain http. The URL bar already shows
-      // the permalink at this point, so say where to find it rather than failing silently.
-      toast.add({ title: "Could not copy", description: "The address bar holds the link to this comparison.", color: "warning" });
+      // Handled below: `copied` stays false.
     }
-  };
+    if (!copied.value) {
+      // The URL bar already shows the permalink at this point, so say where to find it.
+      toast.add({ title: "Could not copy", description: "The address bar holds the link to this comparison.", color: "warning" });
+      return;
+    }
+    if (confirm === "toast") toast.add({ title: "Link copied", description: "It opens this exact comparison.", icon: "i-lucide-check", color: "success", duration: 2000 });
+  }
+
+  return { share, copied };
 }

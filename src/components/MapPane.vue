@@ -24,12 +24,8 @@ const props = defineProps<{
    * credit rather than merely look untidy.
    */
   side?: "left" | "right";
-  /**
-   * Keep the chrome to this pane's half of the deck. In swipe mode the other pane covers the far
-   * half, so chrome reaching past the seam is cut off there, the credit included. Only bites on a
-   * narrow screen, where a credit is wider than half the deck.
-   */
-  half?: boolean;
+  /** How wide the chrome may grow before it would run under the other pane (see `chromeMaxWidth`). */
+  chromeMaxWidth?: string;
 }>();
 
 const container = ref<HTMLDivElement>();
@@ -167,7 +163,8 @@ useResizeObserver(container, () => map.value?.resize());
          inside the visible region when the top pane is clipped. -->
     <div
       class="pointer-events-none absolute bottom-1 z-10 flex flex-col gap-1"
-      :class="[chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end', half ? 'max-w-[calc(50%-1rem)]' : 'max-w-full']"
+      :class="chromeSide === 'left' ? 'left-1 items-start' : 'right-1 items-end'"
+      :style="{ maxWidth: chromeMaxWidth ?? '100%' }"
     >
       <div v-if="layerDef" class="pointer-events-auto">
         <PaneStatus :layer="layerDef" :time="appliedTime" :ended="ended" :failed-tiles="failed" />
@@ -183,7 +180,7 @@ useResizeObserver(container, () => map.value?.resize());
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">{{ resolved.layerLabel }} needs an API key</p>
         <p class="text-ink-400 mt-2 text-xs leading-relaxed">
-          Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste a key in Settings.
+          Set <code class="text-ink-200 font-mono">{{ resolved.key }}</code> in <code class="text-ink-200 font-mono">.env.development</code>, or paste one under API keys.
         </p>
         <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-3 inline-block text-xs hover:underline">
           Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗

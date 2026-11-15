@@ -31,6 +31,9 @@ export default defineConfig({
       autoImport: false,
       // A single view with the URL as its state: there is no vue-router, so links render as <a>.
       router: false,
+      // Dark-only, set by `class="dark"` in index.html. Nuxt UI's colour mode follows the OS and
+      // would strip that class on a light-mode system, turning the chrome white over the imagery.
+      colorMode: false,
       ui: {
         // `ink` is the app's own near-black scale, defined in style.css. The status colours are
         // the -400 shades dark mode uses, matching the licence tiers they replaced.

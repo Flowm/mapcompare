@@ -29,6 +29,8 @@ let peeking = false;
 let swallowClick = false;
 
 function onPointerDown(event: PointerEvent) {
+  // A fresh press owns the next click; nothing left over from an earlier gesture may eat it.
+  swallowClick = false;
   if (event.pointerType === "mouse") return;
   holdTimer = setTimeout(() => {
     peeking = true;
@@ -36,11 +38,16 @@ function onPointerDown(event: PointerEvent) {
   }, HOLD_MS);
 }
 
-function onPointerEnd() {
+/**
+ * Ends a press. Only a release after a peek is followed by a click that must be swallowed; a
+ * cancelled press (the finger slid onto the map, the OS took a long press) sends no click at all,
+ * so arming the swallow then would eat the next real tap.
+ */
+function onPointerEnd(event: PointerEvent) {
   clearTimeout(holdTimer);
   if (!peeking) return;
   peeking = false;
-  swallowClick = true;
+  swallowClick = event.type === "pointerup";
   setBlinkTopVisible(!blinkTopVisible.value);
 }
 
@@ -73,7 +80,6 @@ function label(index: number): string {
     <button
       type="button"
       class="border-ink-600/70 bg-ink-950/85 text-ink-50 hover:bg-ink-800 pointer-events-auto flex max-w-[92vw] touch-manipulation items-center gap-2 rounded-full border py-1 pr-2 pl-1.5 text-xs backdrop-blur transition-colors select-none pointer-coarse:py-2"
-      aria-label="Flip layers. Space flips, holding B peeks."
       @click="onClick"
       @pointerdown="onPointerDown"
       @pointerup="onPointerEnd"
@@ -87,6 +93,8 @@ function label(index: number): string {
         <span class="max-w-[11rem] truncate max-md:max-w-[6.5rem]">{{ label(index) }}</span>
       </span>
 
+      <!-- Described, not labelled: an aria-label would replace the layer names, which are the point. -->
+      <span class="sr-only">Flip layers. Space flips, holding B peeks.</span>
       <UKbd value="space" size="sm" class="ml-0.5 pointer-coarse:hidden" />
       <span class="text-dimmed hidden shrink-0 text-[10px] whitespace-nowrap pointer-coarse:inline">hold to peek</span>
     </button>

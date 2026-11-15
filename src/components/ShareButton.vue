@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { useShare } from "@/composables/useShare";
 
-const share = useShare();
+const { share, copied } = useShare();
 </script>
 
 <template>
-  <UTooltip text="Copy a link to this exact comparison">
-    <UButton icon="i-lucide-link" label="Share" size="sm" color="neutral" variant="outline" :ui="{ label: 'max-lg:sr-only' }" @click="share" />
+  <UTooltip text="Copy a link to this comparison">
+    <UButton
+      :icon="copied ? 'i-lucide-check' : 'i-lucide-link'"
+      :label="copied ? 'Copied' : 'Share'"
+      size="sm"
+      :color="copied ? 'primary' : 'neutral'"
+      variant="outline"
+      :ui="{ label: 'max-lg:sr-only' }"
+      @click="share()"
+    />
   </UTooltip>
 </template>

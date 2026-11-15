@@ -1,5 +1,7 @@
 import { useEventListener } from "@vueuse/core";
 
+import { modeForKey } from "@/lib/mode";
+
 import { useAppState } from "./useAppState";
 
 /**
@@ -15,10 +17,16 @@ import { useAppState } from "./useAppState";
  *
  * Exported because the search bar's `/` needs exactly the same guard, and two copies would drift:
  * the moment one of them learns about a new kind of field, the other one starts eating keystrokes.
+ *
+ * Nuxt UI's selects and menus are not native fields: they are buttons and divs with ARIA roles, and
+ * they read letters and digits as typeahead. Without the role check, typing "2" in a time list
+ * would also switch the deck to two panes.
  */
+const TYPEAHEAD = '[role="combobox"], [role="listbox"], [role="menu"]';
+
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.closest(TYPEAHEAD) !== null;
 }
 
 export function useKeyboardShortcuts() {
@@ -45,31 +53,19 @@ export function useKeyboardShortcuts() {
       return;
     }
 
-    switch (event.key) {
-      case "1":
-      case "2":
-      case "3":
-      case "4":
-        setMode(`g${event.key}` as "g1" | "g2" | "g3" | "g4");
-        break;
-      case "s":
-      case "S":
-        setMode("sw");
-        break;
-      case "b":
-      case "B":
-        // First press enters blink mode; while in it, holding reveals the lower layer.
-        if (mode.value !== "bl") setMode("bl");
-        else if (!event.repeat) setBlinkTopVisible(false);
-        break;
-      default:
-        return;
+    const target = modeForKey(event.key);
+    if (target === undefined) return;
+    // B's first press enters blink mode; while in it, holding reveals the lower layer.
+    if (target === "bl" && mode.value === "bl") {
+      if (!event.repeat) setBlinkTopVisible(false);
+    } else {
+      setMode(target);
     }
     event.preventDefault();
   });
 
   useEventListener(window, "keyup", (event: KeyboardEvent) => {
-    if ((event.key === "b" || event.key === "B") && mode.value === "bl") setBlinkTopVisible(true);
+    if (modeForKey(event.key) === "bl" && mode.value === "bl") setBlinkTopVisible(true);
   });
 
   // A dropped keyup (tab-away mid-hold) would otherwise leave the lower layer stuck on.
