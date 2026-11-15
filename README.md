@@ -46,6 +46,8 @@ over the same street. Hence this.
 - **Place search** (`/` to focus): type a name, or paste a coordinate in decimal degrees, with
   hemisphere letters, or in degrees/minutes/seconds. Coordinates are read in the browser and skip
   the network entirely. Empty, it offers locations chosen to expose provider differences
+- **Works on a phone**: panes stack as rows in portrait, the layer manager is a bottom drawer,
+  and holding the blink control peeks like holding `B`
 - No account, no backend, no tracking
 
 ## The layers
@@ -215,7 +217,8 @@ pnpm dev
 
 ## Architecture
 
-Frontend only. No backend, no database, no router, no global store.
+Frontend only. No backend, no database, no router, no global store. Vue 3 with
+[Nuxt UI](https://ui.nuxt.com) for the chrome (see `docs/adr/0004`).
 
 ```
 components → composables → src/lib (pure TypeScript) → nothing
@@ -231,10 +234,9 @@ Four pieces carry most of the risk and most of the comments explaining why:
   maplibre-gl v6's source: `jumpTo` fires its move events synchronously and unconditionally, so a
   plain re-entrancy guard is airtight. The same reasoning fails for `easeTo`/`flyTo`, which is why
   they are never used to propagate a camera. Unit-tested against a fake map, with no WebGL.
-- **`components/LayerPicker.vue`** teleports its popover to `<body>` and positions it from the
-  trigger's viewport rect (`lib/anchor.ts`, unit-tested). Left inside the pane it would be clipped
-  three ways: by `overflow-hidden`, by the neighbouring pane's chrome, and in swipe mode by the top
-  pane's `clip-path`.
+- **`components/LayerPicker.vue`** opens in a popover (a drawer on a phone) that portals to
+  `<body>`. Left inside the pane it would be clipped three ways: by `overflow-hidden`, by the
+  neighbouring pane's chrome, and in swipe mode by the top pane's `clip-path`.
 - **`components/MapDeck.vue`** owns the only `v-for` over panes. Mode changes swap CSS, so the map
   instances survive grid ⇄ swipe ⇄ blink instead of being torn down and rebuilt.
 - **`src/maplibreWorker.ts`** sets maplibre's worker URL explicitly. Without it, raster tiles work
