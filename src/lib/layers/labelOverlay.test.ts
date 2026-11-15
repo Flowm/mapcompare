@@ -15,8 +15,23 @@ describe("extractLabelOverlay", () => {
   });
 
   it("keeps boundary lines, which orient without competing with the imagery", () => {
-    const kept = overlay.layers.filter((l) => l.type === "line").map((l) => l.id);
+    const kept = overlay.layers.filter((l) => l.type === "line" && "source-layer" in l && l["source-layer"] === "boundary").map((l) => l.id);
     expect(kept.toSorted()).toStrictEqual(["ofm-boundary_2", "ofm-boundary_3"]);
+  });
+
+  it("adds a coastline that outlines only the ocean polygons", () => {
+    // Liberty has no coastline layer, and its water fill would hide the imagery.
+    const coastline = overlay.layers.find((l) => l.id === "ofm-coastline");
+    expect(coastline).toMatchObject({ type: "line", "source-layer": "water", filter: ["==", ["get", "class"], "ocean"] });
+  });
+
+  it("draws the coastline below boundaries and labels", () => {
+    expect(overlay.layers[0]!.id).toBe("ofm-coastline");
+  });
+
+  it("adds no other line layers beyond the coastline and boundaries", () => {
+    const lines = overlay.layers.filter((l) => l.type === "line").map((l) => l.id);
+    expect(lines.toSorted()).toStrictEqual(["ofm-boundary_2", "ofm-boundary_3", "ofm-coastline"]);
   });
 
   it("drops layers that would paint over the imagery", () => {
