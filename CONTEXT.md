@@ -22,10 +22,26 @@ else is not a Layer.
 
 _Avoid_: basemap (that is one Category of Layer), source, provider.
 
+## Added Layer
+
+A Layer the user brought in by URL rather than one the app ships: a STAC collection or item, a
+Cloud-Optimised GeoTIFF, or an XYZ tile template. Once added it is a Layer like any other, but
+nothing about it was measured or checked: its zoom ceiling and credit are whatever the source
+states, and its licence is often unknown.
+
+An Added Layer is either **saved**, kept in this browser, or **from a link**: a link to a
+Comparison carries the definition of every Added Layer it shows, and whoever opens the link sees
+it for that session until they keep it. Opening a link never changes what is saved.
+
+_Avoid_: custom layer, user layer, imported layer.
+
 ## Provider
 
 The organisation that serves a Layer: NASA GIBS, Esri, EOX, EUMETSAT. One Provider serves
 many Layers. A Provider is who to credit and whose terms apply, never how the pixels arrive.
+
+An Added Layer has no known Provider. Its source's own credit stands in for one, and the
+catalogue groups every Added Layer under one heading, "Added by you", which is not a Provider.
 
 _Avoid_: operator, vendor.
 

@@ -43,6 +43,9 @@ over the same street. Hence this.
   asks for a time the layer no longer has
 - **A layer manager** holding the whole catalogue, the licence notes, the API keys and the sources
   table, with a one-line switcher on every pane for the everyday job
+- **Add your own layers by URL**: a STAC catalogue, collection or item, a Cloud-Optimised GeoTIFF,
+  or an XYZ tile template. A STAC collection's items become its times. A shared link carries the
+  added layers it shows, so the recipient sees the same comparison
 - **Shareable URLs** — every comparison is a link
 - **Place search** (`/` to focus): type a name, or paste a coordinate in decimal degrees, with
   hemisphere letters, or in degrees/minutes/seconds. Coordinates are read in the browser and skip
@@ -226,8 +229,10 @@ components → composables → src/lib (pure TypeScript) → nothing
 ```
 
 Everything testable lives in `src/lib/` with no Vue imports and colocated `*.test.ts`. The URL is
-the source of truth for the comparison; `localStorage` holds only API keys and small display
-preferences, including whether the layer manager is open.
+the source of truth for the comparison, including the definitions of any Added Layers it shows.
+`localStorage` holds API keys, small display preferences (such as whether the layer manager is
+open) and the Added Layers the user has saved. A Layer that arrived in a link is kept in memory
+for the session and never written there (see `docs/adr/0005`).
 
 Four pieces carry most of the risk and most of the comments explaining why:
 
@@ -259,7 +264,12 @@ imagery a whole zoom level off, which in a comparison tool produces confidently 
    newest picture has fallen far behind its cadence.
 3. Run `pnpm test`. The registry guard tests pin the invariants.
 
-The vocabulary — Layer, Provider, Time, Category, Orbit, Cadence — is defined in
+Anyone can also add a layer at runtime, from the layer manager's **Add** button, without touching
+the registry. Those Added Layers live in the browser and in links, not in this file, and skip the
+checks above: their ceiling is read from the COG or typed in, and their credit is whatever the
+source states. Adding one to the registry is still how it becomes part of the app.
+
+The vocabulary — Layer, Added Layer, Provider, Time, Category, Orbit, Cadence — is defined in
 [CONTEXT.md](CONTEXT.md), and the decisions behind it in [docs/adr](docs/adr).
 
 ## Deploy
