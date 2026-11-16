@@ -13,6 +13,7 @@ import type { ApiKeyName, Layer, PaneLayer, Wordmark } from "@/lib/layers/types"
 
 import { useApiKeys } from "./useApiKeys";
 import { useAppState } from "./useAppState";
+import { findLayer } from "./useCatalogue";
 import { useClock } from "./useClock";
 import { useDisplaySettings } from "./useDisplaySettings";
 import { useTimeDomain } from "./useTimeDomain";
@@ -160,14 +161,14 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
    * which returns a fresh object and so provoked a full `setStyle` — for a setting that cannot
    * change what those panes render.
    */
-  const effectiveResampling = computed(() => (getLayer(layer.value.layerId)?.kind !== "style" ? resampling.value : undefined));
+  const effectiveResampling = computed(() => (findLayer(layer.value.layerId)?.kind !== "style" ? resampling.value : undefined));
 
   /**
    * The Layer's Times, kept apart from the style so that a cached answer stays cached: a key, the
    * labels or resampling changing must rebuild the style from it, not send a GIBS pane back
    * through `loading` to ask again.
    */
-  const chosenLayer = computed(() => getLayer(layer.value.layerId));
+  const chosenLayer = computed(() => findLayer(layer.value.layerId));
   const { domain: times } = useTimeDomain(chosenLayer, { now: deps.now, loadTimeDomain: deps.loadTimeDomain });
 
   /** Increments on every request so a slow response from a superseded choice is discarded. */
@@ -180,7 +181,7 @@ export function useResolvedStyle(layer: Ref<PaneLayer>, deps: ResolvedStyleDeps 
       const stale = () => request !== generation;
 
       const { layerId, time: requested } = layer.value;
-      const chosen = getLayer(layerId);
+      const chosen = findLayer(layerId);
       if (!chosen) {
         resolved.value = { state: "unknown-layer", layerId };
         return;

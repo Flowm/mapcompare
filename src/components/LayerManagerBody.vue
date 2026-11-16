@@ -6,7 +6,9 @@ import { pressed } from "@/components/pressed";
 import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
+import { findLayer, useCatalogue } from "@/composables/useCatalogue";
 import { useLayerPanel } from "@/composables/useLayerPanel";
+import { isAddedLayer } from "@/lib/layers/added";
 import {
   CADENCE_LABELS,
   CATEGORY_LABELS,
@@ -21,7 +23,6 @@ import {
   providerLabel,
 } from "@/lib/layers/availability";
 import { licenceClasses, licenceInfo } from "@/lib/layers/licence";
-import { getLayer, LAYERS } from "@/lib/layers/registry";
 import { type Cadence, cadenceOf } from "@/lib/layers/time";
 import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type ProviderId } from "@/lib/layers/types";
 
@@ -47,11 +48,12 @@ import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type
  */
 
 const { footer = true } = defineProps<{ footer?: boolean }>();
-const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }>();
+const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": []; "add-layer": [] }>();
 
-const { panes, setPaneLayer, swapPanes } = useAppState();
+const { panes, setPaneLayer, swapPanes, removeAddedLayer } = useAppState();
 const { keys } = useApiKeys();
 const { activePane, groupBy, focusPane } = useLayerPanel();
+const { catalogue, isSaved, saveLayer } = useCatalogue();
 
 /**
  * Not persisted, unlike the grouping: a filter left on from yesterday would quietly hide Layers
@@ -68,7 +70,7 @@ function clearFilters() {
   query.value = "";
 }
 
-const statuses = computed(() => layerStatuses(LAYERS, keys.value));
+const statuses = computed(() => layerStatuses(catalogue.value, keys.value));
 const groups = computed(() =>
   groupLayers(
     statuses.value.filter((s) => matchesFilter(s.layer, filter.value)),
@@ -76,12 +78,12 @@ const groups = computed(() =>
   ),
 );
 
-const facets = {
+const facets = computed(() => ({
   categories: Object.entries(CATEGORY_LABELS) as [Category, string][],
   orbits: Object.entries(ORBIT_LABELS) as [Orbit, string][],
   // Only the Cadences some Layer has: a "Monthly" chip that can only ever empty the list is noise.
-  cadences: (Object.entries(CADENCE_LABELS) as [Cadence, string][]).filter(([cadence]) => LAYERS.some((l) => cadenceOf(l.time) === cadence)),
-};
+  cadences: (Object.entries(CADENCE_LABELS) as [Cadence, string][]).filter(([cadence]) => catalogue.value.some((l) => cadenceOf(l.time) === cadence)),
+}));
 
 function toggle<K extends "categories" | "orbits" | "cadences">(facet: K, value: LayerFilter[K][number]) {
   const current = facetFilter.value[facet] as readonly string[];
@@ -93,10 +95,10 @@ function toggle<K extends "categories" | "orbits" | "cadences">(facet: K, value:
 const ALL_PROVIDERS = "all";
 
 /** Only Providers that have a Layer here, in catalogue order. */
-const providerItems = [
+const providerItems = computed(() => [
   { label: "All providers", value: ALL_PROVIDERS },
-  ...[...new Map(LAYERS.map((l) => [l.provider, providerLabel(l)]))].map(([value, label]) => ({ label, value })),
-];
+  ...[...new Map(catalogue.value.map((l) => [l.provider, providerLabel(l)]))].map(([value, label]) => ({ label, value })),
+]);
 
 const GROUPINGS: { value: GroupBy; label: string }[] = [
   { value: "provider", label: "by provider" },
@@ -121,7 +123,7 @@ const paneUsage = computed(() => {
 /** Each pane with its Layer looked up once, rather than once per binding in the template. */
 const paneRows = computed(() =>
   panes.value.map((pane, index) => {
-    const layer = getLayer(pane.layerId);
+    const layer = findLayer(pane.layerId);
     return { pane, index, layer, licence: layer ? licenceInfo(layer.licence.tier) : undefined };
   }),
 );
@@ -161,7 +163,7 @@ function chipsFor<K extends Facet>(facet: K, options: [LayerFilter[K][number], s
   }));
 }
 
-const facetChips = computed(() => [...chipsFor("categories", facets.categories), ...chipsFor("orbits", facets.orbits), ...chipsFor("cadences", facets.cadences)]);
+const facetChips = computed(() => [...chipsFor("categories", facets.value.categories), ...chipsFor("orbits", facets.value.orbits), ...chipsFor("cadences", facets.value.cadences)]);
 </script>
 
 <template>
@@ -200,7 +202,12 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
     </div>
 
     <div class="border-default shrink-0 space-y-1.5 border-b p-1.5">
-      <UInput v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="w-full" />
+      <div class="flex items-center gap-1">
+        <UInput v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="min-w-0 flex-1" />
+        <UTooltip text="Add a layer by URL: STAC, COG or XYZ tiles">
+          <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" label="Add" @click="emit('add-layer')" />
+        </UTooltip>
+      </div>
 
       <!-- Facets. Within a facet the chips are alternatives; across facets all must hold. -->
       <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category, orbit and cadence">
@@ -249,40 +256,55 @@ const facetChips = computed(() => [...chipsFor("categories", facets.categories),
         <!-- Gated layers stay listed, greyed. Hiding them here would remove the discovery this app
              exists for: knowing a layer exists, and what it would cost, is most of the value. The
              per-pane pickers can afford to hide them precisely because this list does not. -->
-        <button
-          v-for="entry in group.entries"
-          :key="entry.layer.id"
-          type="button"
-          class="hover:bg-elevated block w-full px-2.5 py-1.5 text-left pointer-coarse:py-2.5"
-          :class="panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : ''"
-          :aria-current="panes[target]?.layerId === entry.layer.id ? 'true' : undefined"
-          @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
-        >
-          <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
-            <span class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(entry.layer).dot" />
-            <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
-            <!-- The badges are digits to the eye; a screen reader hears what they mean. -->
-            <span v-if="paneUsage.get(entry.layer.id)" class="sr-only"
-              >, on pane
-              {{
-                paneUsage
-                  .get(entry.layer.id)!
-                  .map((i) => i + 1)
-                  .join(" and ")
-              }}</span
+        <div v-for="entry in group.entries" :key="entry.layer.id" class="group relative">
+          <button
+            type="button"
+            class="hover:bg-elevated block w-full px-2.5 py-1.5 text-left pointer-coarse:py-2.5"
+            :class="panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : ''"
+            :aria-current="panes[target]?.layerId === entry.layer.id ? 'true' : undefined"
+            @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
+          >
+            <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
+              <span class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(entry.layer).dot" />
+              <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ entry.layer.label }}</span>
+              <!-- The badges are digits to the eye; a screen reader hears what they mean. -->
+              <span v-if="paneUsage.get(entry.layer.id)" class="sr-only"
+                >, on pane
+                {{
+                  paneUsage
+                    .get(entry.layer.id)!
+                    .map((i) => i + 1)
+                    .join(" and ")
+                }}</span
+              >
+              <UBadge v-for="paneIndex in paneUsage.get(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" aria-hidden="true" />
+              <UBadge v-if="entry.disabled" size="sm" color="neutral" variant="outline" trailing-icon="i-lucide-key-round" label="key" class="shrink-0" />
+            </span>
+            <span class="mt-0.5 flex items-baseline justify-between gap-2" :class="entry.enabled ? '' : 'opacity-55'">
+              <span class="text-muted line-clamp-2 text-[11px] leading-snug"
+                ><span v-if="groupBy === 'category'" class="text-toned">{{ providerLabel(entry.layer) }} · </span>{{ entry.layer.note }}</span
+              >
+              <span class="shrink-0 text-[10px]" :class="licenceClasses(entry.layer).text">{{ licenceInfo(entry.layer.licence.tier).label }}</span>
+            </span>
+            <!-- Said, not hovered: on a phone a title is never seen, and this is why the row is grey. -->
+            <span v-if="entry.disabled" class="text-warning mt-0.5 block text-[10px] leading-snug">{{ entry.disabled.message }}</span>
+            <span v-if="isAddedLayer(entry.layer) && !isSaved(entry.layer.id)" class="text-primary mt-0.5 block text-[10px] leading-snug"
+              >From a link, for this session only. Keep it to save it.</span
             >
-            <UBadge v-for="paneIndex in paneUsage.get(entry.layer.id)" :key="paneIndex" size="sm" :label="String(paneIndex + 1)" class="shrink-0 font-mono" aria-hidden="true" />
-            <UBadge v-if="entry.disabled" size="sm" color="neutral" variant="outline" trailing-icon="i-lucide-key-round" label="key" class="shrink-0" />
-          </span>
-          <span class="mt-0.5 flex items-baseline justify-between gap-2" :class="entry.enabled ? '' : 'opacity-55'">
-            <span class="text-muted line-clamp-2 text-[11px] leading-snug"
-              ><span v-if="groupBy === 'category'" class="text-toned">{{ providerLabel(entry.layer) }} · </span>{{ entry.layer.note }}</span
-            >
-            <span class="shrink-0 text-[10px]" :class="licenceClasses(entry.layer).text">{{ licenceInfo(entry.layer.licence.tier).label }}</span>
-          </span>
-          <!-- Said, not hovered: on a phone a title is never seen, and this is why the row is grey. -->
-          <span v-if="entry.disabled" class="text-warning mt-0.5 block text-[10px] leading-snug">{{ entry.disabled.message }}</span>
-        </button>
+          </button>
+          <!-- A sibling, not a child: a button inside the row's button is invalid and unreachable by keyboard. -->
+          <div
+            v-if="isAddedLayer(entry.layer)"
+            class="bg-ink-950/90 absolute right-1.5 bottom-1 flex gap-0.5 rounded opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+          >
+            <UTooltip v-if="!isSaved(entry.layer.id)" text="Keep this layer in this browser">
+              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-bookmark-plus" :aria-label="`Keep ${entry.layer.label}`" @click="saveLayer(entry.layer)" />
+            </UTooltip>
+            <UTooltip text="Remove this layer. A link that shows it can still bring it back, for that session.">
+              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-trash-2" :aria-label="`Remove ${entry.layer.label}`" @click="removeAddedLayer(entry.layer.id)" />
+            </UTooltip>
+          </div>
+        </div>
       </div>
 
       <p v-if="groups.length === 0" class="text-muted px-2.5 py-3 text-xs">No layer matches these filters.</p>

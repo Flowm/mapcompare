@@ -7,10 +7,10 @@ import { computed, ref } from "vue";
 import LayerPickerList from "@/components/LayerPickerList.vue";
 import TimeControl from "@/components/TimeControl.vue";
 import { useAppState } from "@/composables/useAppState";
+import { findLayer } from "@/composables/useCatalogue";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useViewport } from "@/composables/useViewport";
 import { licenceClasses } from "@/lib/layers/licence";
-import { getLayer } from "@/lib/layers/registry";
 import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
 
 /**
@@ -37,7 +37,7 @@ const { isCompact } = useViewport();
 const { mode } = useAppState();
 
 const open = ref(false);
-const current = computed(() => getLayer(props.layer.layerId));
+const current = computed(() => findLayer(props.layer.layerId));
 
 const surface = computed(() =>
   isCompact.value

@@ -2,13 +2,14 @@ import { useDebounceFn } from "@vueuse/core";
 import { computed, nextTick, ref, watch } from "vue";
 
 import type { Destination } from "@/lib/destination";
-import { DEFAULT_PANE_LAYERS, getLayer, LAYER_IDS } from "@/lib/layers/registry";
+import { DEFAULT_PANE_LAYERS } from "@/lib/layers/registry";
 import { upgradeLegacyTime } from "@/lib/layers/time";
 import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { type Mode, paneCountFor } from "@/lib/mode";
-import { type AppStateSnapshot, decodeState, encodeState } from "@/lib/urlState";
+import { type AppStateSnapshot, decodeAddedLayers, decodeState, encodeState } from "@/lib/urlState";
 
 import { DEFAULT_CAMERA, moveCamera, useCamera } from "./useCamera";
+import { findLayer, knownLayerIds, useCatalogue } from "./useCatalogue";
 
 /**
  * The app's state, as a module-level singleton, with the URL as its persistent form.
@@ -20,6 +21,7 @@ import { DEFAULT_CAMERA, moveCamera, useCamera } from "./useCamera";
  */
 
 const { camera } = useCamera();
+const { addedLayers, showFromLink, removeLayer } = useCatalogue();
 
 /**
  * DEFAULT_PANE_LAYERS is shared readonly registry data, so every pane list is built from
@@ -35,8 +37,11 @@ function clonePaneLayer(layer: PaneLayer): PaneLayer {
  * ISO Time, so nothing past this point has to know ids were ever in URLs.
  */
 function readUrl(search: string): AppStateSnapshot {
-  const decoded = decodeState(search, LAYER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
-  return { ...decoded, panes: decoded.panes.map((p) => paneLayer(p.layerId, upgradeLegacyTime(getLayer(p.layerId)?.time, p.time))) };
+  // First, so the panes that name the Layers a link carries find them in the catalogue. For this
+  // session only: a link is read again on every Back and Forward, and must not re-save anything.
+  showFromLink(decodeAddedLayers(search));
+  const decoded = decodeState(search, knownLayerIds(), DEFAULT_PANE_LAYERS, FALLBACK);
+  return { ...decoded, panes: decoded.panes.map((p) => paneLayer(p.layerId, upgradeLegacyTime(findLayer(p.layerId)?.time, p.time))) };
 }
 
 const FALLBACK: AppStateSnapshot = {
@@ -87,7 +92,7 @@ let restoring = false;
  */
 function writeUrl(): void {
   if (restoring || typeof window === "undefined") return;
-  window.history.replaceState(null, "", encodeState(snapshot(), DEFAULT_PANE_LAYERS));
+  window.history.replaceState(null, "", encodeState(snapshot(), DEFAULT_PANE_LAYERS, addedLayers.value));
 }
 
 // Camera writes are debounced because they arrive at frame rate; everything else is a discrete
@@ -95,12 +100,27 @@ function writeUrl(): void {
 const writeUrlDebounced = useDebounceFn(writeUrl, 300);
 
 watch(camera, writeUrlDebounced);
-watch([mode, panes, swipe, labels], writeUrl, { deep: true });
+// The added Layers too: renaming one a pane shows changes what the link must carry.
+watch([mode, panes, swipe, labels, addedLayers], writeUrl, { deep: true });
+
+/**
+ * Puts each pane's default in place of a Layer the catalogue no longer has — the hidden panes too,
+ * which a mode change would otherwise bring back naming it. An Added Layer can go from under a pane
+ * without this tab doing anything: removed in another tab, whose storage change reaches this one.
+ */
+function resetVanishedPanes(): void {
+  const vanished = (pane: PaneLayer) => findLayer(pane.layerId) === undefined;
+  const reset = (list: PaneLayer[]) => (list.some(vanished) ? list.map((pane, i) => (vanished(pane) ? defaultPane(i) : pane)) : list);
+  panes.value = reset(panes.value);
+  remembered.value = reset(remembered.value);
+}
+
+watch(addedLayers, resetVanishedPanes);
 
 // A link that arrived with a legacy Time is rewritten at once, so copying it from the address
 // bar shares the upgraded form.
 if (typeof window !== "undefined") {
-  const asWritten = decodeState(window.location.search, LAYER_IDS, DEFAULT_PANE_LAYERS, FALLBACK);
+  const asWritten = decodeState(window.location.search, knownLayerIds(), DEFAULT_PANE_LAYERS, FALLBACK);
   if (asWritten.panes.some((p, i) => p.time !== initial.panes[i]?.time)) writeUrl();
 }
 
@@ -118,6 +138,11 @@ function applyMode(next: Mode): void {
   if (next === "bl") blinkTopVisible.value = true;
 }
 
+/** What pane `index` shows when nothing has been chosen for it. */
+function defaultPane(index: number): PaneLayer {
+  return clonePaneLayer(DEFAULT_PANE_LAYERS[index % DEFAULT_PANE_LAYERS.length]!);
+}
+
 /** Grows or shrinks `panes` to match the mode, restoring previous choices where possible. */
 function reconcilePanes(next: Mode): void {
   const wanted = paneCountFor(next);
@@ -131,8 +156,7 @@ function reconcilePanes(next: Mode): void {
   for (let i = 0; i < wanted; i += 1) {
     const existing = panes.value[i];
     const recalled = remembered.value[i];
-    const fallback = DEFAULT_PANE_LAYERS[i % DEFAULT_PANE_LAYERS.length]!;
-    grown.push(clonePaneLayer(existing ?? recalled ?? fallback));
+    grown.push(clonePaneLayer(existing ?? recalled ?? defaultPane(i)));
   }
   panes.value = grown;
 }
@@ -223,6 +247,12 @@ export function useAppState() {
       panes.value[b] = first;
     },
 
+    /** Forgets an Added Layer, and every pane that showed it, hidden or not, shows its default. */
+    removeAddedLayer(layerId: string) {
+      removeLayer(layerId);
+      resetVanishedPanes();
+    },
+
     setLabels(enabled: boolean) {
       labels.value = enabled;
     },
@@ -243,7 +273,7 @@ export function useAppState() {
      * flushes the debounced camera write so the copied link is current rather than 300 ms old.
      */
     sharePermalink(): string {
-      const url = encodeState(snapshot(), DEFAULT_PANE_LAYERS);
+      const url = encodeState(snapshot(), DEFAULT_PANE_LAYERS, addedLayers.value);
       if (typeof window !== "undefined") {
         window.history.pushState(null, "", url);
         return window.location.href;

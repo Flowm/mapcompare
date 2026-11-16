@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { PaneLayer } from "@/lib/layers/types";
 
+import { xyzCandidate } from "./layers/addedInspect";
 import { MODES } from "./mode";
 import { paneCountFor } from "./mode";
 import { fractionFromPointer, MIN_INSET } from "./swipe";
-import { type AppStateSnapshot, canonicalise, decodeState, encodeState } from "./urlState";
+import { type AppStateSnapshot, canonicalise, decodeAddedLayers, decodeState, encodeState } from "./urlState";
 
 const IDS = new Set(["versatiles.satellite", "esri.imagery", "eox.s2cloudless", "esri.wayback"]);
 const DEFAULTS: readonly PaneLayer[] = [{ layerId: "versatiles.satellite" }, { layerId: "esri.imagery" }, { layerId: "eox.s2cloudless" }, { layerId: "esri.wayback" }];
@@ -190,11 +191,11 @@ describe("decodeState", () => {
     expect(decode("?m=g1&p=esri.imagery")).toStrictEqual(decode("m=g1&p=esri.imagery"));
   });
 
-  it("drops an unknown provider id and backfills from defaults", () => {
-    // A future build may stop shipping a provider; an old link should still render.
-    const result = decode("?m=g2&v=16.00/52.37300/4.89300&p=gone.away,esri.imagery");
-    expect(result.panes).toHaveLength(2);
-    expect(result.panes.map((p) => p.layerId)).not.toContain("gone.away");
+  it("replaces an unknown provider id with that pane's default, keeping every pane in place", () => {
+    // A future build may stop shipping a provider; an old link should still render. Dropping it
+    // shifted the panes after it: esri moved from the right of a swipe to the left.
+    const result = decode("?m=g2&v=16.00/52.37300/4.89300&p=gone.away,eox.s2cloudless");
+    expect(result.panes.map((p) => p.layerId)).toStrictEqual(["versatiles.satellite", "eox.s2cloudless"]);
   });
 
   it("falls back to defaults when every provider id is unknown", () => {
@@ -260,5 +261,33 @@ describe("decodeState", () => {
     ]);
     expect(result.swipe).toBe(0.375);
     expect(result.labels).toBe(true);
+  });
+});
+
+describe("Layers added by URL", () => {
+  const shown = xyzCandidate("https://tiles.example/{z}/{x}/{y}.png").layer;
+  const hidden = xyzCandidate("https://other.example/{z}/{x}/{y}.png").layer;
+  const state: AppStateSnapshot = { ...FALLBACK, panes: [{ layerId: shown.id }, { layerId: "esri.imagery" }] };
+
+  it("carries only the ones a pane shows, right after the panes", () => {
+    const url = encodeState(state, DEFAULTS, [hidden, shown]);
+    expect(url).toMatch(new RegExp(`&p=${shown.id.replace(".", "\\.")},esri\\.imagery&c=[A-Za-z0-9_-]+$`));
+    expect(decodeAddedLayers(url)).toStrictEqual([shown]);
+  });
+
+  it("writes no parameter when no pane shows one", () => {
+    expect(encodeState(FALLBACK, DEFAULTS, [shown])).not.toContain("c=");
+  });
+
+  it("round-trips the whole comparison once the carried Layers are known", () => {
+    const url = encodeState(state, DEFAULTS, [shown]);
+    const ids = new Set([...IDS, ...decodeAddedLayers(url).map((l) => l.id)]);
+    expect(decodeState(url, ids, DEFAULTS, FALLBACK).panes).toStrictEqual(state.panes);
+  });
+
+  it("drops a token that does not decode and keeps the rest", () => {
+    const token = encodeState(state, DEFAULTS, [shown]).split("c=")[1]!;
+    expect(decodeAddedLayers(`?c=garbage,${token}`)).toStrictEqual([shown]);
+    expect(decodeAddedLayers("?m=g2")).toStrictEqual([]);
   });
 });

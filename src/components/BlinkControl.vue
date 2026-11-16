@@ -3,7 +3,7 @@ import { onLongPress } from "@vueuse/core";
 import { computed, ref } from "vue";
 
 import { useAppState } from "@/composables/useAppState";
-import { getLayer } from "@/lib/layers/registry";
+import { findLayer } from "@/composables/useCatalogue";
 
 /**
  * Blink mode's only visible affordance.
@@ -63,7 +63,7 @@ const shownIndex = computed(() => (blinkTopVisible.value ? 0 : 1));
 function label(index: number): string {
   const pane = panes.value[index];
   if (!pane) return "—";
-  return getLayer(pane.layerId)?.label ?? pane.layerId;
+  return findLayer(pane.layerId)?.label ?? pane.layerId;
 }
 </script>
 
