@@ -67,43 +67,52 @@ const slotItems = computed(() => slots.value.map((slot) => ({ label: slotOf(slot
  */
 const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"));
 const fieldUi = computed(() => ({ base: ["font-mono", props.dense ? "text-[10px]" : "", overMap.value].join(" ") }));
+const latest = computed(() => ({ label: "latest", ...pressed(props.time === undefined, "soft"), class: ["font-mono", overMap.value, props.dense && "text-[10px]"] }));
 </script>
 
 <template>
-  <UFieldGroup v-if="spec" :size="dense ? 'xs' : 'sm'" :aria-label="`${spec.label} for ${layer.label}`">
-    <UTooltip :text="`Previous ${spec.label.toLowerCase()}`">
-      <UButton
-        icon="i-lucide-chevron-left"
-        color="neutral"
-        variant="outline"
-        :class="overMap"
-        :disabled="previous === undefined"
-        :aria-label="`Previous ${spec.label.toLowerCase()}`"
-        @click="step(previous)"
-      />
-    </UTooltip>
+  <!-- In the manager the joined control is wider than the column, and a group cannot wrap. There
+       "latest" stands apart and the wrapper gives way to the row, so "latest" wraps onto the next
+       line with the copy buttons rather than running off the edge. Over the map it stays joined. -->
+  <div v-if="spec" :class="dense ? 'contents' : 'flex'">
+    <UFieldGroup :size="dense ? 'xs' : 'sm'" :aria-label="`${spec.label} for ${layer.label}`">
+      <UTooltip :text="`Previous ${spec.label.toLowerCase()}`">
+        <UButton
+          icon="i-lucide-chevron-left"
+          color="neutral"
+          variant="outline"
+          :class="overMap"
+          :disabled="previous === undefined"
+          :aria-label="`Previous ${spec.label.toLowerCase()}`"
+          @click="step(previous)"
+        />
+      </UTooltip>
 
-    <USelect v-if="shape === 'list'" :model-value="resolved?.time" :items="listItems" :aria-label="spec.label" :ui="fieldUi" @update:model-value="pick" />
+      <USelect v-if="shape === 'list'" :model-value="resolved?.time" :items="listItems" :aria-label="spec.label" :ui="fieldUi" @update:model-value="pick" />
 
-    <template v-else>
-      <!-- Native, not a calendar component: a phone's own date picker is the better one. -->
-      <UInput type="date" :model-value="day" :min="bounds.min" :max="bounds.max" :aria-label="`${spec.label} (UTC date)`" :ui="fieldUi" @update:model-value="pickDay" />
-      <USelect v-if="shape === 'slots'" :model-value="resolved?.time" :items="slotItems" :aria-label="`${spec.label} (UTC)`" :ui="fieldUi" @update:model-value="pick" />
-    </template>
+      <template v-else>
+        <!-- Native, not a calendar component: a phone's own date picker is the better one. -->
+        <UInput type="date" :model-value="day" :min="bounds.min" :max="bounds.max" :aria-label="`${spec.label} (UTC date)`" :ui="fieldUi" @update:model-value="pickDay" />
+        <USelect v-if="shape === 'slots'" :model-value="resolved?.time" :items="slotItems" :aria-label="`${spec.label} (UTC)`" :ui="fieldUi" @update:model-value="pick" />
+      </template>
 
-    <UTooltip :text="`Next ${spec.label.toLowerCase()}`">
-      <UButton
-        icon="i-lucide-chevron-right"
-        color="neutral"
-        variant="outline"
-        :class="overMap"
-        :disabled="next === undefined"
-        :aria-label="`Next ${spec.label.toLowerCase()}`"
-        @click="step(next)"
-      />
+      <UTooltip :text="`Next ${spec.label.toLowerCase()}`">
+        <UButton
+          icon="i-lucide-chevron-right"
+          color="neutral"
+          variant="outline"
+          :class="overMap"
+          :disabled="next === undefined"
+          :aria-label="`Next ${spec.label.toLowerCase()}`"
+          @click="step(next)"
+        />
+      </UTooltip>
+      <UTooltip v-if="!dense" text="Follow the latest picture">
+        <UButton v-bind="latest" @click="emit('update', undefined)" />
+      </UTooltip>
+    </UFieldGroup>
+    <UTooltip v-if="dense" text="Follow the latest picture">
+      <UButton size="xs" v-bind="latest" @click="emit('update', undefined)" />
     </UTooltip>
-    <UTooltip text="Follow the latest picture">
-      <UButton label="latest" v-bind="pressed(time === undefined, 'soft')" class="font-mono" :class="[overMap, dense && 'text-[10px]']" @click="emit('update', undefined)" />
-    </UTooltip>
-  </UFieldGroup>
+  </div>
 </template>

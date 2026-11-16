@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import { useCatalogue } from "@/composables/useCatalogue";
 import { useViewport } from "@/composables/useViewport";
 import { BUILD_DATE, BUILD_SHA } from "@/env";
 import { sanitizeAttributionHtml } from "@/lib/attribution";
 import { providerLabel } from "@/lib/layers/availability";
 import { describeAttribution } from "@/lib/layers/buildStyle";
 import { LICENCE_TIERS, licenceClasses, licenceInfo } from "@/lib/layers/licence";
-import { LAYERS } from "@/lib/layers/registry";
 import { SEVERITY_CLASSES } from "@/lib/severity";
 
 const open = defineModel<boolean>("open", { required: true });
 const { isCompact } = useViewport();
+const { catalogue } = useCatalogue();
 
 function coverage(maxzoom: number, note: string | undefined): string {
   return note ?? `to z${maxzoom}`;
@@ -37,7 +38,7 @@ function coverage(maxzoom: number, note: string | undefined): string {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="layer in LAYERS" :key="layer.id" class="border-ink-800/60 border-b align-top">
+              <tr v-for="layer in catalogue" :key="layer.id" class="border-ink-800/60 border-b align-top">
                 <td class="py-2 pr-3">
                   <span class="text-ink-50 font-medium">{{ layer.label }}</span>
                   <span class="text-muted block">{{ providerLabel(layer) }}</span>

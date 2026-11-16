@@ -17,7 +17,8 @@ import type { Layer } from "@/lib/layers/types";
 const documents = new Map<string, Promise<string>>();
 const domains = new Map<string, Promise<TimeDomain | undefined>>();
 
-function fetchText(url: string): Promise<string> {
+/** Shared with layer inspection, so adding a STAC Layer warms the cache its panes then read. */
+export function fetchText(url: string): Promise<string> {
   const cached = documents.get(url);
   if (cached) return cached;
   const pending = fetch(url).then((res) => {

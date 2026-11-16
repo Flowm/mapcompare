@@ -1,3 +1,5 @@
+import type { AddedLayer } from "@/lib/layers/added";
+import { decodeAddedLayer, encodeAddedLayer } from "@/lib/layers/addedCodec";
 import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 
 import { clampCamera, type CameraState, ZOOM_LIMITS } from "./camera";
@@ -16,7 +18,9 @@ import { clampSwipe } from "./swipe";
  *   m   mode        g1|g2|g3|g4|sw|bl
  *   v   viewport    zoom/lat/lon[/bearing[/pitch]]
  *   p   panes       comma-separated layerId[:time], in pane order. A Time is ISO
- *               (`2024`, `2025-12-18`, `2026-11-13T19:00Z`); only the first colon separates it
+ *                   (`2024`, `2025-12-18`, `2026-11-13T19:00Z`); only the first colon separates it
+ *   c   added       comma-separated definitions of the Added Layers a pane shows, so the link
+ *                   carries them to someone who never added them. See `encodeAddedLayer`
  *   sw  divider     0..1, only in swipe mode and only when not centred
  *   l   labels      1, only when the label overlay is on
  *
@@ -75,7 +79,11 @@ export function canonicalise(state: AppStateSnapshot, defaults: readonly PaneLay
   };
 }
 
-export function encodeState(state: AppStateSnapshot, defaults: readonly PaneLayer[]): string {
+/**
+ * `added` is every Layer the user added by URL; only those a pane shows are written, so a link
+ * never carries a Layer its recipient would not see.
+ */
+export function encodeState(state: AppStateSnapshot, defaults: readonly PaneLayer[], added: readonly AddedLayer[] = []): string {
   const s = canonicalise(state, defaults);
   const params: string[] = [];
 
@@ -89,6 +97,10 @@ export function encodeState(state: AppStateSnapshot, defaults: readonly PaneLaye
 
   params.push(`p=${s.panes.map((p) => (p.time === undefined ? p.layerId : `${p.layerId}:${p.time}`)).join(",")}`);
 
+  const shown = new Set(s.panes.map((p) => p.layerId));
+  const carried = added.filter((l) => shown.has(l.id));
+  if (carried.length > 0) params.push(`c=${carried.map(encodeAddedLayer).join(",")}`);
+
   if (s.mode === "sw" && s.swipe !== 0.5) params.push(`sw=${s.swipe.toFixed(3)}`);
   if (s.labels) params.push("l=1");
 
@@ -97,11 +109,12 @@ export function encodeState(state: AppStateSnapshot, defaults: readonly PaneLaye
 
 /**
  * `knownIds` is injected rather than imported from the registry. That keeps the codec free of
- * an import cycle, makes it testable against a three-element Set, and lets it silently drop
- * ids that a future build no longer ships instead of rendering a broken pane.
+ * an import cycle, makes it testable against a three-element Set, and lets it replace ids that a
+ * future build no longer ships, or an Added Layer whose definition did not survive, with that
+ * pane's default instead of rendering a broken pane.
  */
 export function decodeState(search: string, knownIds: ReadonlySet<string>, defaults: readonly PaneLayer[], fallback: AppStateSnapshot): AppStateSnapshot {
-  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const params = searchParams(search);
 
   const rawMode = params.get("m");
   const mode = rawMode !== null && isMode(rawMode) ? rawMode : fallback.mode;
@@ -114,7 +127,11 @@ export function decodeState(search: string, knownIds: ReadonlySet<string>, defau
       ? fallback.panes
       : rawPanes
           .split(",")
-          .map((token) => parsePane(token, knownIds))
+          .filter((token) => token.trim() !== "")
+          // An unknown Layer keeps its place with that pane's default, rather than being dropped and
+          // shifting every later pane one to the left: in a swipe or blink, which side shows what is
+          // the comparison.
+          .map((token, i) => parsePane(token, knownIds) ?? defaults[i % Math.max(1, defaults.length)])
           .filter((p): p is PaneLayer => p !== undefined);
 
   const swipe = parseNumber(params.get("sw")) ?? fallback.swipe;
@@ -123,9 +140,23 @@ export function decodeState(search: string, knownIds: ReadonlySet<string>, defau
   return canonicalise({ mode, camera, panes: panes.length > 0 ? panes : fallback.panes, swipe, labels }, defaults);
 }
 
+/**
+ * The Layers a link carries, for the caller to add to the catalogue before decoding the panes that
+ * name them. A token that does not decode is dropped, as an unknown Layer id is.
+ */
+export function decodeAddedLayers(search: string): AddedLayer[] {
+  const raw = searchParams(search).get("c");
+  if (!raw) return [];
+  return raw.split(",").flatMap((token) => decodeAddedLayer(token.trim()) ?? []);
+}
+
+/** A query string with or without its leading `?`. */
+function searchParams(search: string): URLSearchParams {
+  return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+}
+
 function parsePane(token: string, knownIds: ReadonlySet<string>): PaneLayer | undefined {
   const trimmed = token.trim();
-  if (trimmed === "") return undefined;
   const colon = trimmed.indexOf(":");
   const layerId = colon === -1 ? trimmed : trimmed.slice(0, colon);
   if (!knownIds.has(layerId)) return undefined;

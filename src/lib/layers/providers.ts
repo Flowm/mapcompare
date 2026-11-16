@@ -16,4 +16,7 @@ export const PROVIDERS: Readonly<Record<ProviderId, Provider>> = {
   stadia: { label: "Stadia Maps", url: "https://stadiamaps.com/" },
   here: { label: "HERE", url: "https://www.here.com/" },
   openfreemap: { label: "OpenFreeMap", url: "https://openfreemap.org/" },
+  // Not an organisation: the app cannot know who serves an Added Layer, so they share one header and
+  // each credits whatever its own source states. See CONTEXT.md.
+  added: { label: "Added by you" },
 };

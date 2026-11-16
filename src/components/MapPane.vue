@@ -7,11 +7,11 @@ import PaneAttribution from "@/components/PaneAttribution.vue";
 import PaneStatus from "@/components/PaneStatus.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useCamera } from "@/composables/useCamera";
+import { findLayer } from "@/composables/useCatalogue";
 import { useDisplaySettings } from "@/composables/useDisplaySettings";
 import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
 import { ZOOM_LIMITS } from "@/lib/camera";
-import { getLayer } from "@/lib/layers/registry";
 import type { PaneLayer } from "@/lib/layers/types";
 
 const props = defineProps<{
@@ -37,7 +37,7 @@ const { allowRotate } = useDisplaySettings();
 
 const layerRef = computed(() => props.layer);
 const { resolved } = useResolvedStyle(layerRef);
-const layerDef = computed(() => getLayer(props.layer.layerId));
+const layerDef = computed(() => findLayer(props.layer.layerId));
 const { failed } = usePaneTiles(map);
 
 /**

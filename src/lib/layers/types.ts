@@ -32,8 +32,9 @@ export const API_KEY_NAMES: readonly ApiKeyName[] = Object.keys(API_KEY_NAME_SET
  * - `terms`        Provider terms restrict reuse; intended for use inside their own products.
  * - `metered`      Every tile is billed to your key.
  * - `restricted`   Non-commercial and/or share-alike.
+ * - `unknown`      A Layer the user added, whose source states no licence the app can judge.
  */
-export type LicenceTier = "open" | "licensed" | "terms" | "metered" | "restricted";
+export type LicenceTier = "open" | "licensed" | "terms" | "metered" | "restricted" | "unknown";
 
 export interface Licence {
   tier: LicenceTier;
@@ -77,11 +78,12 @@ export interface Wordmark {
  */
 export interface Provider {
   label: string;
-  url: string;
+  /** Absent only for the shared header of Added Layers, which is not an organisation. */
+  url?: string;
 }
 
 /** Every Provider the catalogue credits, so a misspelt key fails the build rather than the filter. */
-export type ProviderId = "versatiles" | "esri" | "eox" | "nasa-gibs" | "eumetsat" | "satvis" | "mapbox" | "maptiler" | "stadia" | "here" | "openfreemap";
+export type ProviderId = "versatiles" | "esri" | "eox" | "nasa-gibs" | "eumetsat" | "satvis" | "mapbox" | "maptiler" | "stadia" | "here" | "openfreemap" | "added";
 
 /** What kind of picture a Layer is. See CONTEXT.md: basemap hides when, satellite shows when. */
 export type Category = "basemap" | "satellite" | "map";

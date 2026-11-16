@@ -13,7 +13,7 @@ import type { ApiKeyName } from "@/lib/layers/types";
  * keeping the map in view while layers are tried; drag it up for the whole catalogue.
  */
 
-const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": [] }>();
+const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": []; "add-layer": [] }>();
 
 const { managerOpen, closeManager } = useLayerPanel();
 const { isCompact } = useViewport();
@@ -26,7 +26,7 @@ const { isCompact } = useViewport();
       <LayerManagerActions @open-keys="emit('open-keys')" @open-sources="emit('open-sources')" />
     </template>
     <template #body>
-      <LayerManagerBody :footer="false" @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" />
+      <LayerManagerBody :footer="false" @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" @add-layer="emit('add-layer')" />
     </template>
   </UDrawer>
 
@@ -37,6 +37,6 @@ const { isCompact } = useViewport();
         <UButton icon="i-lucide-x" size="xs" color="neutral" variant="ghost" aria-label="Hide the layer manager" @click="closeManager" />
       </UTooltip>
     </div>
-    <LayerManagerBody @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" />
+    <LayerManagerBody @open-keys="emit('open-keys', $event)" @open-sources="emit('open-sources')" @add-layer="emit('add-layer')" />
   </aside>
 </template>

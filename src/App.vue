@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from "@nuxt/ui";
-import { computed, ref } from "vue";
+import { useToast } from "@nuxt/ui/composables/useToast";
+import { computed, ref, watch } from "vue";
 
+import AddLayerDialog from "@/components/AddLayerDialog.vue";
 import CameraReadout from "@/components/CameraReadout.vue";
 import KeysDialog from "@/components/KeysDialog.vue";
 import LabelToggle from "@/components/LabelToggle.vue";
@@ -14,6 +16,7 @@ import PWAUpdateBar from "@/components/PWAUpdateBar.vue";
 import ShareButton from "@/components/ShareButton.vue";
 import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
+import { useCatalogue } from "@/composables/useCatalogue";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useShare } from "@/composables/useShare";
@@ -22,6 +25,19 @@ import type { ApiKeyName } from "@/lib/layers/types";
 const { labels, setLabels, installHistoryListener } = useAppState();
 const { managerOpen, toggleManager } = useLayerPanel();
 const { share } = useShare();
+const { restoredByLink } = useCatalogue();
+const toast = useToast();
+
+// Going Back to a link that showed a Layer the user has since removed shows it again, which is right —
+// that is what the link describes — but would read as a removal that did not work unless it is said.
+watch(restoredByLink, (layers) => {
+  if (layers.length === 0) return;
+  toast.add({
+    title: "Shown again from this link",
+    description: `${layers.map((l) => l.label).join(", ")}: for this session only. Remove it again, or keep it from the layer manager.`,
+    icon: "i-lucide-history",
+  });
+});
 
 useKeyboardShortcuts();
 
@@ -31,6 +47,7 @@ installHistoryListener();
 
 const keysOpen = ref(false);
 const sourcesOpen = ref(false);
+const addLayerOpen = ref(false);
 const focusKey = ref<ApiKeyName | undefined>();
 
 function openKeys(key?: ApiKeyName) {
@@ -56,6 +73,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
   ],
   [
     { label: "API keys", icon: "i-lucide-key-round", onSelect: () => openKeys() },
+    { label: "Add a layer", icon: "i-lucide-plus", onSelect: () => (addLayerOpen.value = true) },
     { label: "Sources & licences", icon: "i-lucide-book-open", onSelect: () => (sourcesOpen.value = true) },
   ],
 ]);
@@ -103,11 +121,12 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
           <MapDeck />
         </main>
 
-        <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" />
+        <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" @add-layer="addLayerOpen = true" />
       </div>
 
       <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />
       <SourcesDialog v-model:open="sourcesOpen" />
+      <AddLayerDialog v-model:open="addLayerOpen" />
       <PWAUpdateBar />
     </div>
   </UApp>

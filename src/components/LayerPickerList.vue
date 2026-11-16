@@ -3,10 +3,10 @@ import type { CommandPaletteGroup, CommandPaletteItem } from "@nuxt/ui";
 import { computed, ref } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
+import { useCatalogue } from "@/composables/useCatalogue";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { groupLayers, layerStatuses, providerLabel } from "@/lib/layers/availability";
 import { licenceClasses } from "@/lib/layers/licence";
-import { LAYERS } from "@/lib/layers/registry";
 import type { Layer } from "@/lib/layers/types";
 
 /**
@@ -20,10 +20,11 @@ const emit = defineEmits<{ choose: [layer: Layer]; manager: [] }>();
 
 const { keys } = useApiKeys();
 const { groupBy } = useLayerPanel();
+const { catalogue } = useCatalogue();
 
 const query = ref("");
 
-const statuses = computed(() => layerStatuses(LAYERS, keys.value));
+const statuses = computed(() => layerStatuses(catalogue.value, keys.value));
 const available = computed(() => statuses.value.filter((s) => s.enabled));
 const gatedCount = computed(() => statuses.value.length - available.value.length);
 

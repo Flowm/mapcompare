@@ -3,7 +3,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 
+import { xyzCandidate } from "@/lib/layers/addedInspect";
+
 import { useAppState } from "./useAppState";
+import { findLayer, useCatalogue } from "./useCatalogue";
 
 /**
  * These two behaviours were reproduced as defects before being fixed, and both were invisible from
@@ -126,5 +129,52 @@ describe("goTo", () => {
   it("levels the camera, so arrival matches the view the zoom was chosen for", () => {
     state.goTo({ center: [10, 20], zoom: 12 });
     expect(state.camera.value).toMatchObject({ bearing: 0, pitch: 0, roll: 0 });
+  });
+});
+
+describe("removing an Added Layer", () => {
+  const layer = xyzCandidate("https://removed.example/{z}/{x}/{y}.png").layer;
+  const catalogue = useCatalogue();
+
+  it("resets the hidden panes too, so a mode change cannot bring it back", () => {
+    catalogue.saveLayer(layer);
+    state.setMode("g4");
+    state.setPaneLayer(0, { layerId: layer.id });
+    state.setPaneLayer(3, { layerId: layer.id });
+    state.setMode("g2");
+
+    state.removeAddedLayer(layer.id);
+    expect(state.panes.value[0]!.layerId).toBe("versatiles.satellite");
+    state.setMode("g4");
+    expect(state.panes.value.map((p) => p.layerId)).not.toContain(layer.id);
+    state.setMode("g2");
+  });
+
+  it("is not saved again by going Back to a link that carried it", async () => {
+    state.installHistoryListener();
+    catalogue.saveLayer(layer);
+    state.setPaneLayer(0, { layerId: layer.id });
+    const link = state.sharePermalink();
+    expect(link).toContain("&c=");
+
+    state.removeAddedLayer(layer.id);
+    window.history.pushState(null, "", link);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await nextTick();
+    await nextTick();
+
+    // The link still shows its comparison, but only for this session.
+    expect(state.panes.value[0]!.layerId).toBe(layer.id);
+    expect(findLayer(layer.id)).toBeDefined();
+    expect(catalogue.isSaved(layer.id)).toBe(false);
+    catalogue.removeLayer(layer.id);
+  });
+
+  it("resets the panes when the Layer disappears from under them, as a removal in another tab does", async () => {
+    catalogue.saveLayer(layer);
+    state.setPaneLayer(1, { layerId: layer.id });
+    catalogue.removeLayer(layer.id);
+    await nextTick();
+    expect(state.panes.value[1]!.layerId).toBe("esri.imagery");
   });
 });

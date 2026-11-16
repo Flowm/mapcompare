@@ -1,11 +1,12 @@
 # Generic source kinds, with Times discovered from the service
 
-One registry lists every Layer from every Provider, and how a Layer becomes pixels is decided only
-by a protocol-level kind: `xyz`, `style`, `wmts`, `wms`, `cog`, `stac`. There is no GIBS kind and no
-per-Provider adapter. We considered both; they turned out unnecessary because GIBS is standard WMTS
-and its capabilities already carry the one thing an adapter would have computed: which Times exist.
-Tile templates stay declared in the registry rather than read from capabilities, so a Layer still
-renders when its capabilities cannot be fetched (GIBS publishes no RESTful `ResourceURL` anyway).
+One registry lists every Layer the app ships, from every Provider (the user can add more at runtime:
+see ADR 0005), and how a Layer becomes pixels is decided only by a protocol-level kind: `xyz`,
+`style`, `wmts`, `wms`, `cog`, `stac`. There is no GIBS kind and no per-Provider adapter. We
+considered both; they turned out unnecessary because GIBS is standard WMTS and its capabilities
+already carry the one thing an adapter would have computed: which Times exist. Tile templates stay
+declared in the registry rather than read from capabilities, so a Layer still renders when its
+capabilities cannot be fetched (GIBS publishes no RESTful `ResourceURL` anyway).
 
 Time-aware Layers discover their Times from the service at runtime (WMTS and WMS capabilities,
 STAC items) and fall back to declared rules only where a service publishes nothing. Declared rules

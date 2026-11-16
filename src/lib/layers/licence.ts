@@ -48,6 +48,11 @@ export const LICENCE_TIERS: Record<LicenceTier, LicenceTierInfo> = {
     severity: "bad",
     explanation: "Non-commercial use only, and for some sources derivatives must be shared alike. A commercial licence is available from the provider.",
   },
+  unknown: {
+    label: "unknown",
+    severity: "warn",
+    explanation: "A layer you added by URL whose source states no licence this app can judge. Check the provider's terms before reusing anything.",
+  },
 };
 
 export function licenceInfo(tier: LicenceTier): LicenceTierInfo {
