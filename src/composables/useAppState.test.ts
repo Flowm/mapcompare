@@ -116,6 +116,15 @@ describe("panes", () => {
     ]);
   });
 
+  it("sets every satellite pane to follow the latest when the source does, rather than pinning them", () => {
+    state.setMode("g3");
+    state.setPaneLayer(0, { layerId: "gibs.goes.east" });
+    state.setPaneLayer(1, { layerId: "gibs.viirs.noaa20", time: "2026-11-13" });
+    state.setPaneLayer(2, { layerId: "eox.s2cloudless", time: "2020" });
+    state.showTimeOnEveryPane(undefined);
+    expect(state.panes.value).toStrictEqual([{ layerId: "gibs.goes.east" }, { layerId: "gibs.viirs.noaa20" }, { layerId: "eox.s2cloudless", time: "2020" }]);
+  });
+
   it("ignores an out-of-range pane index rather than growing the deck", () => {
     state.setMode("g2");
     state.setPaneLayer(7, { layerId: "esri.imagery" });

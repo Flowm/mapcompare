@@ -189,8 +189,19 @@ const canMatch = computed(() => {
   );
 });
 
+/** Following the latest is what gets shared when this pane follows it; otherwise the moment on screen. */
+const everywhere = computed(() =>
+  props.following
+    ? { label: "Follow the latest on every pane", icon: "i-lucide-radio", note: "Each satellite pane follows its own newest picture. Basemaps keep their Time." }
+    : {
+        label: "Show this time on every pane",
+        icon: "i-lucide-copy",
+        note: "Each satellite pane shows its own picture of this moment and stops following the latest. Basemaps keep their Time.",
+      },
+);
+
 function showEverywhere() {
-  showTimeOnEveryPane(props.resolved.time);
+  showTimeOnEveryPane(props.following ? undefined : props.resolved.time);
   emit("done");
 }
 </script>
@@ -321,8 +332,8 @@ function showEverywhere() {
       <!-- The same moment everywhere: GOES-East beside Meteosat at one instant, or a daily swath
          beside the geostationary frame of that morning. -->
       <div v-if="canMatch">
-        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-copy" label="Show this time on every pane" class="w-full justify-center" @click="showEverywhere" />
-        <p class="text-dimmed mt-1 text-[10px] leading-snug">Each satellite pane shows its own picture of this moment and stops following the latest. Basemaps keep theirs.</p>
+        <UButton size="xs" color="neutral" variant="outline" :icon="everywhere.icon" :label="everywhere.label" class="w-full justify-center" @click="showEverywhere" />
+        <p class="text-dimmed mt-1 text-[10px] leading-snug">{{ everywhere.note }}</p>
       </div>
     </div>
   </div>

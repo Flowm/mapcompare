@@ -244,18 +244,21 @@ export function useAppState() {
     },
 
     /**
-     * Shows one moment on every satellite pane, each at its own precision, so GOES-East and Meteosat
-     * show the same instant and a daily Layer shows that day. Every one is pinned, the pane it came
-     * from included: following the latest on one would let it drift away from the rest.
+     * Gives every satellite pane the same Time as one pane. A moment is shown on each at its own
+     * precision, so GOES-East and Meteosat show the same instant and a daily Layer shows that day,
+     * and every one is pinned, the pane it came from included: following the latest on one would let
+     * it drift away from the rest. No moment means the source follows the latest, and then so does
+     * every pane, each to its own newest picture, rather than all being pinned to this minute's.
      *
      * Basemaps keep their own Time. A basemap hides when (CONTEXT.md), so a moment means nothing to
      * it, and asking EOX for 2026 would only earn a "showing 2025" warning.
      */
-    showTimeOnEveryPane(moment: string) {
+    showTimeOnEveryPane(moment: string | undefined) {
       panes.value.forEach((pane, index) => {
         const layer = findLayer(pane.layerId);
-        const time = layer?.time && isMatchable(layer) ? timeAt(moment, layer.time.precision) : undefined;
-        if (time === undefined) return;
+        if (!layer?.time || !isMatchable(layer)) return;
+        const time = moment === undefined ? undefined : timeAt(moment, layer.time.precision);
+        if (moment !== undefined && time === undefined) return;
         panes.value[index] = paneLayer(pane.layerId, time);
         remembered.value[index] = paneLayer(pane.layerId, time);
       });
