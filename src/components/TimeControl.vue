@@ -99,10 +99,14 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         :disabled="status !== 'ready'"
         :class="[overMap, minWidth, dense && 'text-[10px]', 'justify-between tabular-nums']"
         :title="status === 'error' && state.state === 'error' ? state.message : undefined"
-        :aria-label="`${spec.label}: ${label.replace(/…$/, '')}${following && resolved ? ', following the latest' : ''}. Choose another`"
+        :aria-label="`${spec.label}: ${label.replace(/…$/, '')}${resolved ? (following ? ', following the latest' : ', fixed') : ''}. Choose another`"
       >
         <span class="truncate">{{ label }}</span>
-        <span v-if="resolved && following" class="text-primary text-[10px] font-medium">latest</span>
+        <!-- Which panes move on their own and which are fixed, readable across a whole deck. -->
+        <span v-if="resolved && following" class="text-primary flex shrink-0 items-center gap-1 text-[10px] font-medium" aria-hidden="true">
+          <span class="bg-primary size-1.5 rounded-full" />latest
+        </span>
+        <UIcon v-else-if="resolved" name="i-lucide-pin" class="text-muted size-3 shrink-0" aria-hidden="true" />
       </UButton>
 
       <template v-if="isCompact" #body>

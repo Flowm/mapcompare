@@ -60,10 +60,33 @@ function pick(time: string | undefined, done = true) {
   if (done) emit("done");
 }
 
-/** Pinning keeps the picture on screen; following hands the pane back to whatever is newest. */
-function setFollowing(on: boolean) {
-  pick(on ? undefined : props.resolved.time, false);
-}
+/**
+ * Following or fixed, said as a state with the one action that changes it. A switch read the same
+ * either way, and turning it off changed nothing visible: fixing keeps the picture on screen. The
+ * fixed state leads with the newest picture, which is why anyone opens it.
+ */
+const isNewest = computed(() => current.value !== undefined && current.value === latest.value);
+const status = computed(() => {
+  if (props.following) {
+    return {
+      title: "Following the latest",
+      note: "Updates as new pictures arrive. A shared link shows whatever is newest when it is opened.",
+      action: { label: "Keep this picture", icon: "i-lucide-pin", color: "neutral" as const, variant: "outline" as const, time: props.resolved.time },
+    };
+  }
+  if (isNewest.value) {
+    return {
+      title: "Fixed",
+      note: "This is still the newest picture. A shared link keeps showing it.",
+      action: { label: "Follow the latest", icon: "i-lucide-radio", color: "neutral" as const, variant: "outline" as const, time: undefined },
+    };
+  }
+  return {
+    title: "Fixed",
+    note: `Newest is ${humanTime(latestLabel.value)} (${ago(latestLabel.value)}).`,
+    action: { label: "Go to latest", icon: "i-lucide-skip-forward", color: "primary" as const, variant: "solid" as const, time: undefined },
+  };
+});
 
 // ------------------------------------------------------------------------------ list
 
@@ -180,14 +203,23 @@ function showEverywhere() {
       <p class="text-muted text-[11px]">{{ ago(resolved.time) }}</p>
     </div>
 
-    <USwitch
-      :model-value="following"
-      size="sm"
-      label="Follow the latest picture"
-      :description="following ? 'A shared link shows whatever is newest when it is opened.' : `Newest: ${humanTime(latestLabel)}, ${ago(latestLabel)}.`"
-      :ui="{ description: 'text-[11px]' }"
-      @update:model-value="setFollowing"
-    />
+    <div class="border-default rounded border p-2.5">
+      <p class="flex items-center gap-1.5 text-xs">
+        <span v-if="following" class="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
+        <UIcon v-else name="i-lucide-pin" class="text-toned size-3.5 shrink-0" aria-hidden="true" />
+        <span class="text-highlighted font-medium">{{ status.title }}</span>
+      </p>
+      <p class="text-muted mt-0.5 text-[11px] leading-snug">{{ status.note }}</p>
+      <UButton
+        size="xs"
+        :color="status.action.color"
+        :variant="status.action.variant"
+        :icon="status.action.icon"
+        :label="status.action.label"
+        class="mt-2 w-full justify-center pointer-coarse:py-1.5"
+        @click="pick(status.action.time, false)"
+      />
+    </div>
 
     <!-- Vintages and snapshots: every one, with its age. -->
     <div v-if="shape === 'list'" class="border-default max-h-60 overflow-y-auto rounded border" role="group" :aria-label="spec.label">
