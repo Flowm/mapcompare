@@ -54,7 +54,7 @@ const { footer = true } = defineProps<{ footer?: boolean }>();
 
 const { panes, setPaneLayer, swapPanes, removeAddedLayer } = useAppState();
 const { keys } = useApiKeys();
-const { activePane, groupBy, focusPane, searchPending, searchHandled } = useLayerPanel();
+const { activePane, groupBy, focusPane, searchPending, managerSearchHandled } = useLayerPanel();
 const { isCompact } = useViewport();
 const { catalogue, isSaved, saveLayer } = useCatalogue();
 const { openKeys, openAddLayer } = useDialogs();
@@ -91,7 +91,7 @@ watch(
   searchPending,
   async (pending) => {
     if (!pending) return;
-    searchHandled();
+    managerSearchHandled();
     if (isCompact.value) return;
     await nextTick();
     requestAnimationFrame(() => {
@@ -251,12 +251,12 @@ const facetRows = computed(() => [
           <UButton
             size="xs"
             icon="i-lucide-sliders-horizontal"
-            v-bind="pressed(filtersOpen || activeFacets > 0, 'soft')"
+            :color="filtersOpen || activeFacets > 0 ? 'primary' : 'neutral'"
+            :variant="filtersOpen || activeFacets > 0 ? 'soft' : 'outline'"
             :label="activeFacets > 0 ? String(activeFacets) : undefined"
             :aria-label="activeFacets > 0 ? `Filters, ${activeFacets} on` : 'Filters'"
             :aria-expanded="filtersOpen"
             aria-controls="layer-filters"
-            :aria-pressed="undefined"
             @click="filtersOpen = !filtersOpen"
           />
         </UTooltip>

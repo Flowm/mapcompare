@@ -68,7 +68,10 @@ const groups = computed<CommandPaletteGroup[]>(() => {
 
     <!-- The pane's own Layer, marked: the list otherwise gives no hint of what is on the map. -->
     <template #item-trailing="{ item }">
-      <UIcon v-if="item.active" name="i-lucide-check" class="text-primary size-3.5 shrink-0 self-center" aria-label="current" />
+      <template v-if="item.active">
+        <UIcon name="i-lucide-check" class="text-primary size-3.5 shrink-0 self-center" aria-hidden="true" />
+        <span class="sr-only">(current)</span>
+      </template>
     </template>
 
     <template #empty>

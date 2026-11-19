@@ -6,8 +6,9 @@ import type { ApiKeyName } from "@/lib/layers/types";
  * Which of the app's dialogs is open.
  *
  * Module-level, like the layer panel's state, because the ways in are spread across the app: the
- * header menu, the layer manager, a greyed row, a pane blocked on a missing key. Each opens the
- * dialog itself rather than passing an event up through every component between it and App.
+ * layer manager, a greyed row in it, a pane blocked on a missing key. Each opens the dialog itself
+ * rather than passing an event up through every component between it and App, which only renders
+ * them.
  */
 
 const keysOpen = ref(false);

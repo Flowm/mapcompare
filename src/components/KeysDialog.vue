@@ -122,8 +122,11 @@ const SOURCE_TEXT = {
             :ui="{ description: 'text-[11px]', hint: 'text-[10px]' }"
           >
             <template #label>
-              <span class="text-highlighted text-sm font-medium">{{ row.provider }}</span>
-              <code class="text-dimmed ml-2 font-mono text-[10px]">{{ row.name }}</code>
+              <!-- Each part on one line; on a phone the env var drops below rather than splitting a name. -->
+              <span class="inline-flex flex-wrap items-baseline gap-x-2">
+                <span class="text-highlighted text-sm font-medium whitespace-nowrap">{{ row.provider }}</span>
+                <code class="text-dimmed font-mono text-[10px] whitespace-nowrap">{{ row.name }}</code>
+              </span>
             </template>
 
             <div class="flex items-center gap-1.5">

@@ -66,13 +66,13 @@ export function useLayerPanel() {
     },
 
     /** Opens the manager and puts focus in its search. */
-    searchManager() {
+    openManagerSearch() {
       managerOpen.value = true;
       searchPending.value = true;
     },
 
     /** The manager took the search request. */
-    searchHandled() {
+    managerSearchHandled() {
       searchPending.value = false;
     },
 
