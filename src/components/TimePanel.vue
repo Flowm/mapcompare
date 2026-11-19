@@ -252,9 +252,12 @@ function showOnEveryPane() {
         :aria-pressed="option === resolved.time"
         @click="chooseAndClose(option)"
       >
+        <!-- A column of its own on every row, so the check never pushes the ages out of line. -->
+        <span class="flex size-3.5 shrink-0 items-center" aria-hidden="true">
+          <UIcon v-if="option === resolved.time" name="i-lucide-check" class="text-primary size-3.5" />
+        </span>
         <span class="text-highlighted flex-1 tabular-nums">{{ humanTime(option) }}</span>
-        <span class="text-muted text-[11px]">{{ ago(option) }}</span>
-        <UIcon v-if="option === resolved.time" name="i-lucide-check" class="text-primary size-3.5" aria-hidden="true" />
+        <span class="text-muted text-[11px] tabular-nums">{{ ago(option) }}</span>
       </button>
     </div>
 
