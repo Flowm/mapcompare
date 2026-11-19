@@ -203,24 +203,6 @@ function showEverywhere() {
       <p class="text-muted text-[11px]">{{ ago(resolved.time) }}</p>
     </div>
 
-    <div class="border-default rounded border p-2.5">
-      <p class="flex items-center gap-1.5 text-xs">
-        <span v-if="following" class="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
-        <UIcon v-else name="i-lucide-pin" class="text-toned size-3.5 shrink-0" aria-hidden="true" />
-        <span class="text-highlighted font-medium">{{ status.title }}</span>
-      </p>
-      <p class="text-muted mt-0.5 text-[11px] leading-snug">{{ status.note }}</p>
-      <UButton
-        size="xs"
-        :color="status.action.color"
-        :variant="status.action.variant"
-        :icon="status.action.icon"
-        :label="status.action.label"
-        class="mt-2 w-full justify-center pointer-coarse:py-1.5"
-        @click="pick(status.action.time, false)"
-      />
-    </div>
-
     <!-- Vintages and snapshots: every one, with its age. -->
     <div v-if="shape === 'list'" class="border-default max-h-60 overflow-y-auto rounded border" role="group" :aria-label="spec.label">
       <button
@@ -285,14 +267,16 @@ function showEverywhere() {
       </div>
       <div v-if="shownHour && (byHour.get(shownHour)?.length ?? 0) > 1">
         <p class="text-muted mb-1 text-[10px] font-semibold tracking-wide uppercase">Frame</p>
-        <div class="flex flex-wrap gap-1">
+        <!-- Six columns: the ten-minute layers' six frames an hour sit on one line, as the hours
+             above sit in rows of eight. A five-minute layer gets two rows of six. -->
+        <div class="grid grid-cols-6 gap-1">
           <UButton
             v-for="frame in byHour.get(shownHour!)"
             :key="frame"
             size="xs"
             :label="slotOf(frame)"
             v-bind="pressed(frame === resolved.time, 'soft')"
-            class="font-mono text-[10px] pointer-coarse:py-1.5"
+            class="justify-center px-0 font-mono text-[10px] pointer-coarse:py-1.5"
             @click="pick(frame, false)"
           />
         </div>
@@ -313,11 +297,33 @@ function showEverywhere() {
       </div>
     </div>
 
-    <!-- The same moment everywhere: GOES-East beside Meteosat at one instant, or a daily swath
+    <!-- Below the picking, beside the other "what happens to this pane" choice: picking a time
+         fixes the pane anyway, so this is where the result is read and undone. -->
+    <div class="border-default space-y-3 border-t pt-3">
+      <div class="border-default rounded border p-2.5">
+        <p class="flex items-center gap-1.5 text-xs">
+          <span v-if="following" class="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
+          <UIcon v-else name="i-lucide-pin" class="text-toned size-3.5 shrink-0" aria-hidden="true" />
+          <span class="text-highlighted font-medium">{{ status.title }}</span>
+        </p>
+        <p class="text-muted mt-0.5 text-[11px] leading-snug">{{ status.note }}</p>
+        <UButton
+          size="xs"
+          :color="status.action.color"
+          :variant="status.action.variant"
+          :icon="status.action.icon"
+          :label="status.action.label"
+          class="mt-2 w-full justify-center pointer-coarse:py-1.5"
+          @click="pick(status.action.time, false)"
+        />
+      </div>
+
+      <!-- The same moment everywhere: GOES-East beside Meteosat at one instant, or a daily swath
          beside the geostationary frame of that morning. -->
-    <div v-if="canMatch" class="border-default border-t pt-3">
-      <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-copy" label="Show this time on every pane" class="w-full justify-center" @click="showEverywhere" />
-      <p class="text-dimmed mt-1 text-[10px] leading-snug">Each satellite pane shows its own picture of this moment and stops following the latest. Basemaps keep theirs.</p>
+      <div v-if="canMatch">
+        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-copy" label="Show this time on every pane" class="w-full justify-center" @click="showEverywhere" />
+        <p class="text-dimmed mt-1 text-[10px] leading-snug">Each satellite pane shows its own picture of this moment and stops following the latest. Basemaps keep theirs.</p>
+      </div>
     </div>
   </div>
 </template>
