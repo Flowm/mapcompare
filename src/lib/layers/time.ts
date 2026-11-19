@@ -285,6 +285,62 @@ export function timesOnDay(domain: TimeDomain, day: number): string[] {
   return out;
 }
 
+/** Whether any Time falls within the UTC day of `day`: the days a calendar offers. */
+export function hasTimeOnDay(domain: TimeDomain, day: number): boolean {
+  const from = floorTo(day, "day");
+  const first = timeAfter(domain, from - 1);
+  return first !== undefined && first < from + DAY;
+}
+
+/**
+ * The Time `delta` milliseconds from `t`, or the latest one before that when nothing was recorded
+ * then. Undefined when that would not move past `t` in the asked direction: one hour on from the
+ * newest frame, or back from the first.
+ */
+export function timeShiftedBy(domain: TimeDomain, t: number, delta: number): number | undefined {
+  const found = timeAtOrBefore(domain, t + delta);
+  if (found === undefined) return undefined;
+  return (delta > 0 ? found > t : found < t) ? found : undefined;
+}
+
+// ------------------------------------------------------------------------------ labels
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * A formatted Time as a person reads it: "2025", "18 Nov 2026", "19 Nov 2026, 00:10 UTC". Fixed
+ * English rather than the browser's locale, so everyone who opens a link reads the same date, and
+ * a day never reads as the month in the other order.
+ */
+export function humanTime(time: string): string {
+  const ms = parseTime(time);
+  if (ms === undefined || /^\d{4}$/.test(time.trim())) return time.trim();
+  const d = new Date(ms);
+  const day = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  const slot = slotOf(time);
+  return slot === undefined ? day : `${day}, ${slot} UTC`;
+}
+
+/**
+ * How long before `now` a Time began, as coarsely as a glance needs: "40 min ago", "5 h ago",
+ * "yesterday", "12 days ago", "3 months ago", "2 years ago". A daily composite begins at midnight,
+ * so yesterday's reads "yesterday" all day.
+ */
+export function timeAgo(ms: number, now: Date): string {
+  const diff = now.getTime() - ms;
+  const HOUR = 60 * MINUTE;
+  if (diff < MINUTE) return "just now";
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)} min ago`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)} h ago`;
+  const days = Math.floor(diff / DAY);
+  if (days < 2) return "yesterday";
+  if (days < 45) return `${days} days ago`;
+  const months = Math.floor(days / 30.44);
+  if (months < 12) return months === 1 ? "1 month ago" : `${months} months ago`;
+  const years = Math.floor(days / 365.25);
+  return years === 1 ? "1 year ago" : `${years} years ago`;
+}
+
 /**
  * Why a pane is not showing the Time it was asked for. Each reads differently on the pane,
  * because each means something different to someone holding a shared link.

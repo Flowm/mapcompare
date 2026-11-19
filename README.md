@@ -34,7 +34,7 @@ over the same street. Hence this.
 - **Satellite imagery with a time control**: daily VIIRS and MODIS swaths from NASA GIBS, GOES-East
   and GOES-West every ten minutes, Meteosat-12 from EUMETSAT, and an hourly mosaic of all four
   geostationary disks. Each layer asks its service which times exist, so missing days are stepped
-  over and a late satellite is never shown as black
+  over, struck through in the calendar, and a late satellite is never shown as black
 - **Filter and group the catalogue** by type (basemap, satellite, map), orbit (LEO, GEO),
   cadence and provider
 - **Optional label overlay** from OpenFreeMap (place names, borders and coastlines), drawn

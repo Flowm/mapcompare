@@ -13,6 +13,8 @@ import {
   domainFromValues,
   endedOn,
   formatTime,
+  hasTimeOnDay,
+  humanTime,
   latestTime,
   listTimes,
   parseDuration,
@@ -20,7 +22,9 @@ import {
   resolveTime,
   templateTime,
   timeAfter,
+  timeAgo,
   timeBefore,
+  timeShiftedBy,
   timesOnDay,
 } from "./time";
 import type { TimeSpec } from "./types";
@@ -96,6 +100,20 @@ describe("domains", () => {
       "2026-11-13T19:00Z",
     ]);
     expect(timesOnDay(goes, utc("2026-11-14"))).toStrictEqual([]);
+  });
+
+  it("knows which days have a picture, so a calendar can grey out the rest", () => {
+    expect(hasTimeOnDay(goes, utc("2026-11-13T07:00Z"))).toBe(true);
+    expect(hasTimeOnDay(goes, utc("2026-11-12"))).toBe(false);
+    expect(hasTimeOnDay(goes, utc("2026-11-14"))).toBe(false);
+  });
+
+  it("shifts by a duration to the frame then, or the last one before it", () => {
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -20 * 60_000)!, "minute")).toBe("2026-11-13T18:40Z");
+    // 18:30 is the missing slot, so half an hour back from 19:00 lands on 18:20.
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -30 * 60_000)!, "minute")).toBe("2026-11-13T18:20Z");
+    expect(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), 60 * 60_000)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -DAY)).toBeUndefined();
   });
 
   it("will not write out a list too long for a dropdown", () => {
@@ -192,6 +210,25 @@ describe("display", () => {
     expect(displayTime("2026-11-13T19:00Z")).toBe("2026-11-13 19:00 UTC");
     expect(displayTime("2026-11-13")).toBe("2026-11-13");
     expect(displayTime("2025")).toBe("2025");
+  });
+
+  it("writes a Time the way a person reads it, the same in every locale", () => {
+    expect(humanTime("2025")).toBe("2025");
+    expect(humanTime("2026-11-08")).toBe("8 Nov 2026");
+    expect(humanTime("2026-11-13T00:10Z")).toBe("13 Nov 2026, 00:10 UTC");
+    expect(humanTime("not a time")).toBe("not a time");
+  });
+
+  it("says how long ago a Time began, coarsely", () => {
+    const now = new Date(utc("2026-11-19T01:30Z"));
+    expect(timeAgo(utc("2026-11-19T01:30Z"), now)).toBe("just now");
+    expect(timeAgo(utc("2026-11-19T00:50Z"), now)).toBe("40 min ago");
+    expect(timeAgo(utc("2026-11-18T20:00Z"), now)).toBe("5 h ago");
+    expect(timeAgo(utc("2026-11-18"), now)).toBe("yesterday");
+    expect(timeAgo(utc("2026-11-07"), now)).toBe("12 days ago");
+    expect(timeAgo(utc("2026-08-01"), now)).toBe("3 months ago");
+    expect(timeAgo(utc("2025-06-30"), now)).toBe("1 year ago");
+    expect(timeAgo(utc("2019-12-12"), now)).toBe("6 years ago");
   });
 
   it("splits a slot into its day and time of day, and puts them back", () => {
