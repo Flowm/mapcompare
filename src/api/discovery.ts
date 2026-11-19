@@ -21,10 +21,18 @@ const domains = new Map<string, Promise<TimeDomain | undefined>>();
 export function fetchText(url: string): Promise<string> {
   const cached = documents.get(url);
   if (cached) return cached;
-  const pending = fetch(url).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText} from ${new URL(url).host}`);
-    return res.text();
-  });
+  const host = new URL(url).host;
+  const pending = fetch(url).then(
+    (res) => {
+      if (!res.ok) throw new Error(`${[res.status, res.statusText].filter(Boolean).join(" ")} from ${host}`);
+      return res.text();
+    },
+    // A rejected fetch says only "Failed to fetch" (Chrome) or "Load failed" (Safari), and the
+    // browser will not tell which of the two usual causes it was, so name both.
+    (error: unknown) => {
+      throw new Error(`Could not reach ${host}. The host may be down, or it does not allow requests from other sites (CORS).`, { cause: error });
+    },
+  );
   pending.catch(() => documents.delete(url));
   documents.set(url, pending);
   return pending;

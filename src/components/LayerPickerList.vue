@@ -64,6 +64,11 @@ const groups = computed<CommandPaletteGroup[]>(() => {
       <span class="size-1.5 shrink-0 rounded-full" :class="(item as LayerItem).dot" />
     </template>
 
+    <!-- The pane's own Layer, marked: the list otherwise gives no hint of what is on the map. -->
+    <template #item-trailing="{ item }">
+      <UIcon v-if="item.active" name="i-lucide-check" class="text-primary size-3.5 shrink-0" aria-label="current" />
+    </template>
+
     <template #empty>
       <p class="text-muted px-3 py-4 text-xs">No layer matches “{{ query }}”.</p>
     </template>

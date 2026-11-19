@@ -8,6 +8,7 @@ import PaneStatus from "@/components/PaneStatus.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useCamera } from "@/composables/useCamera";
 import { findLayer } from "@/composables/useCatalogue";
+import { useDialogs } from "@/composables/useDialogs";
 import { useDisplaySettings } from "@/composables/useDisplaySettings";
 import { usePaneTiles } from "@/composables/usePaneTiles";
 import { useResolvedStyle } from "@/composables/useResolvedStyle";
@@ -34,6 +35,7 @@ const map = shallowRef<MapLibreMap>();
 const { camera } = useAppState();
 const { registerPane } = useCamera();
 const { allowRotate } = useDisplaySettings();
+const { openKeys } = useDialogs();
 
 const layerRef = computed(() => props.layer);
 const { resolved } = useResolvedStyle(layerRef);
@@ -180,9 +182,11 @@ useResizeObserver(container, () => map.value?.resize());
       <div class="max-w-xs">
         <p class="text-ink-50 text-sm font-medium">{{ resolved.layerLabel }} needs an API key</p>
         <p class="text-muted mt-2 text-xs leading-relaxed">
-          Set <code class="text-default font-mono">{{ resolved.key }}</code> in <code class="text-default font-mono">.env.development</code>, or paste one under API keys.
+          Paste one to see it here. Keys stay in this browser. A site build can also set <code class="text-default font-mono">{{ resolved.key }}</code
+          >.
         </p>
-        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-3 inline-block text-xs hover:underline">
+        <UButton size="sm" icon="i-lucide-key-round" label="Add a key" class="mt-3" @click="openKeys(resolved.key)" />
+        <a v-if="layerDef?.keyUrl" :href="layerDef.keyUrl" target="_blank" rel="noreferrer noopener" class="text-primary mt-2 block text-xs hover:underline">
           Get a key<span v-if="layerDef.freeTier"> — {{ layerDef.freeTier }}</span> ↗
         </a>
       </div>

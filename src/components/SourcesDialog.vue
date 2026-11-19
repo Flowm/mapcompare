@@ -26,13 +26,27 @@ function coverage(maxzoom: number, note: string | undefined): string {
           this app exists to show.
         </p>
 
-        <div class="overflow-x-auto">
+        <!-- Before the table, which uses these words in every row, rather than after it. -->
+        <div>
+          <h3 class="text-xs font-semibold">What the licence chips mean</h3>
+          <dl class="mt-1.5 space-y-1 text-[11px] leading-relaxed">
+            <div v-for="(info, tier) in LICENCE_TIERS" :key="tier" class="flex gap-2">
+              <dt class="w-28 shrink-0" :class="SEVERITY_CLASSES[info.severity].text">{{ info.label }}</dt>
+              <dd class="text-muted">{{ info.explanation }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Scrolls sideways only where it must, on a phone: a scrolling box would also stop the
+             header row sticking to the top of the dialog. The header's negative top cancels the
+             dialog body's padding, which a sticky element otherwise keeps clear of. -->
+        <div class="overflow-x-auto sm:overflow-x-visible">
           <table class="w-full min-w-[46rem] border-collapse text-[11px]">
             <thead>
-              <tr class="border-default text-muted border-b text-left">
+              <tr class="text-muted [&>th]:bg-default text-left [&>th]:sticky [&>th]:-top-4 [&>th]:z-10 [&>th]:shadow-[inset_0_-1px_0_var(--ui-border)] sm:[&>th]:-top-6">
                 <th class="py-1.5 pr-3 font-medium">Layer</th>
                 <th class="py-1.5 pr-3 font-medium">Coverage &amp; resolution</th>
-                <th class="py-1.5 pr-3 font-medium">Max zoom</th>
+                <th class="py-1.5 pr-3 font-medium whitespace-nowrap">Max zoom</th>
                 <th class="py-1.5 pr-3 font-medium">Licence</th>
                 <th class="py-1.5 font-medium">Credit</th>
               </tr>
@@ -58,16 +72,6 @@ function coverage(maxzoom: number, note: string | undefined): string {
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <div>
-          <h3 class="text-xs font-semibold">What the licence chips mean</h3>
-          <dl class="mt-1.5 space-y-1 text-[11px] leading-relaxed">
-            <div v-for="(info, tier) in LICENCE_TIERS" :key="tier" class="flex gap-2">
-              <dt class="w-28 shrink-0" :class="SEVERITY_CLASSES[info.severity].text">{{ info.label }}</dt>
-              <dd class="text-muted">{{ info.explanation }}</dd>
-            </div>
-          </dl>
         </div>
 
         <div class="text-muted text-[11px] leading-relaxed">
