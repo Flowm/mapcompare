@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from "@nuxt/ui";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 import LayerManagerActions from "@/components/LayerManagerActions.vue";
 import { pressed } from "@/components/pressed";
@@ -10,6 +10,7 @@ import { useAppState } from "@/composables/useAppState";
 import { findLayer, useCatalogue } from "@/composables/useCatalogue";
 import { useDialogs } from "@/composables/useDialogs";
 import { useLayerPanel } from "@/composables/useLayerPanel";
+import { useViewport } from "@/composables/useViewport";
 import { isAddedLayer } from "@/lib/layers/added";
 import {
   CADENCE_LABELS,
@@ -53,7 +54,8 @@ const { footer = true } = defineProps<{ footer?: boolean }>();
 
 const { panes, setPaneLayer, swapPanes, removeAddedLayer } = useAppState();
 const { keys } = useApiKeys();
-const { activePane, groupBy, focusPane } = useLayerPanel();
+const { activePane, groupBy, focusPane, searchPending, searchHandled } = useLayerPanel();
+const { isCompact } = useViewport();
 const { catalogue, isSaved, saveLayer } = useCatalogue();
 const { openKeys, openAddLayer } = useDialogs();
 
@@ -77,6 +79,30 @@ const activeFacets = computed(() => {
   const f = facetFilter.value;
   return f.categories.length + f.orbits.length + f.cadences.length + f.providers.length;
 });
+
+/**
+ * Asked for by a picker's "Layer manager" entry. Not on a phone, where focus would raise the
+ * keyboard over the drawer that was just opened to show the list. Waits a frame for the popover
+ * that asked to close and hand focus back to its trigger, which would otherwise take it straight
+ * back.
+ */
+const SEARCH_ID = "layer-manager-search";
+watch(
+  searchPending,
+  async (pending) => {
+    if (!pending) return;
+    searchHandled();
+    if (isCompact.value) return;
+    await nextTick();
+    requestAnimationFrame(() => {
+      const input = document.getElementById(SEARCH_ID);
+      if (!(input instanceof HTMLInputElement)) return;
+      input.focus();
+      input.select();
+    });
+  },
+  { immediate: true },
+);
 
 function clearFilters() {
   facetFilter.value = { ...NO_FILTER };
@@ -220,7 +246,7 @@ const facetRows = computed(() => [
 
     <div class="border-default shrink-0 space-y-1.5 border-b p-1.5">
       <div class="flex items-center gap-1">
-        <UInput v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" aria-label="Filter layers" class="min-w-0 flex-1" />
+        <UInput :id="SEARCH_ID" v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" aria-label="Filter layers" class="min-w-0 flex-1" />
         <UTooltip :text="filtersOpen ? 'Hide filters' : 'Filter by type, orbit, cadence and provider'">
           <UButton
             size="xs"

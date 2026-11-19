@@ -44,18 +44,36 @@ const managerOpen = computed({
 
 const activePane = ref(0);
 
+/**
+ * Set to ask the manager to focus its search. The pickers' "Layer manager" entry opens the
+ * manager, which does nothing visible when it is already open beside the map; moving focus into
+ * its search does, and is the next step anyway: the entry is how to look past the short list.
+ *
+ * A flag the manager clears, not an event: when the manager was closed, the request comes before
+ * the manager is mounted to hear it.
+ */
+const searchPending = ref(false);
+
 export function useLayerPanel() {
   return {
     managerOpen,
     groupBy,
     activePane: computed(() => activePane.value),
+    searchPending: computed(() => searchPending.value),
 
     toggleManager() {
       managerOpen.value = !managerOpen.value;
     },
 
-    openManager() {
+    /** Opens the manager and puts focus in its search. */
+    searchManager() {
       managerOpen.value = true;
+      searchPending.value = true;
+    },
+
+    /** The manager took the search request. */
+    searchHandled() {
+      searchPending.value = false;
     },
 
     closeManager() {
