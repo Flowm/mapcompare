@@ -1,5 +1,5 @@
 import type { DiscoveredTimes } from "./discovery";
-import type { TimePrecision, TimeSpec } from "./types";
+import type { Layer, TimePrecision, TimeSpec } from "./types";
 
 /**
  * Which pictures a Layer has, and which one a request means.
@@ -15,8 +15,9 @@ import type { TimePrecision, TimeSpec } from "./types";
  * for the snapshot published on or before it, and never for a picture of the future.
  */
 
-const MINUTE = 60_000;
-const DAY = 24 * 60 * MINUTE;
+export const MINUTE = 60_000;
+export const HOUR = 60 * MINUTE;
+export const DAY = 24 * HOUR;
 
 export interface TimeRange {
   /** Milliseconds, UTC. */
@@ -310,6 +311,15 @@ export function timeShiftedBy(domain: TimeDomain, t: number, delta: number): num
 }
 
 /**
+ * Whether a Layer has its own picture of a moment: a satellite Layer with Times, which shows when.
+ * A basemap hides when (CONTEXT.md), so a moment means nothing to it, and asking EOX for 2026
+ * would only earn a "showing 2025" warning. These are the Layers one moment is set across.
+ */
+export function showsMoment(layer: Layer): layer is Layer & { time: TimeSpec } {
+  return layer.category === "satellite" && layer.time !== undefined;
+}
+
+/**
  * One moment written at another Layer's precision: the day of it, or the year. Asking a Layer for
  * that resolves, by the usual rule, to its picture whose Period contains the moment.
  */
@@ -343,7 +353,6 @@ export function humanTime(time: string): string {
  */
 export function timeAgo(ms: number, now: Date): string {
   const diff = now.getTime() - ms;
-  const HOUR = 60 * MINUTE;
   if (diff < MINUTE) return "just now";
   if (diff < HOUR) return `${Math.floor(diff / MINUTE)} min ago`;
   if (diff < DAY) return `${Math.floor(diff / HOUR)} h ago`;

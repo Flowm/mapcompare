@@ -3,8 +3,8 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import type { Destination } from "@/lib/destination";
 import { DEFAULT_PANE_LAYERS } from "@/lib/layers/registry";
-import { timeAt, upgradeLegacyTime } from "@/lib/layers/time";
-import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
+import { showsMoment, timeAt, upgradeLegacyTime } from "@/lib/layers/time";
+import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { type Mode, paneCountFor } from "@/lib/mode";
 import { type AppStateSnapshot, decodeAddedLayers, decodeState, encodeState } from "@/lib/urlState";
 
@@ -22,10 +22,6 @@ import { findLayer, knownLayerIds, useCatalogue } from "./useCatalogue";
 
 const { camera } = useCamera();
 
-/** Whether a Layer takes part in showing one moment on every pane: one whose pictures show when. */
-export function isMatchable(layer: Layer): boolean {
-  return layer.category === "satellite" && layer.time !== undefined;
-}
 const { addedLayers, showFromLink, removeLayer } = useCatalogue();
 
 /**
@@ -250,13 +246,12 @@ export function useAppState() {
      * it drift away from the rest. No moment means the source follows the latest, and then so does
      * every pane, each to its own newest picture, rather than all being pinned to this minute's.
      *
-     * Basemaps keep their own Time. A basemap hides when (CONTEXT.md), so a moment means nothing to
-     * it, and asking EOX for 2026 would only earn a "showing 2025" warning.
+     * Basemaps keep their own Time: see showsMoment.
      */
     showTimeOnEveryPane(moment: string | undefined) {
       panes.value.forEach((pane, index) => {
         const layer = findLayer(pane.layerId);
-        if (!layer?.time || !isMatchable(layer)) return;
+        if (!layer || !showsMoment(layer)) return;
         const time = moment === undefined ? undefined : timeAt(moment, layer.time.precision);
         if (moment !== undefined && time === undefined) return;
         panes.value[index] = paneLayer(pane.layerId, time);

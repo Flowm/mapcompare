@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { getLayer } from "./registry";
 import {
   atSlot,
   cadenceOf,
+  DAY,
+  HOUR,
+  showsMoment,
   dayOf,
   displayTime,
   slotOf,
@@ -31,8 +35,6 @@ import {
 import type { TimeSpec } from "./types";
 
 const utc = (s: string) => parseTime(s)!;
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
 
 describe("parseTime / formatTime", () => {
   it("reads every precision this app writes, and the seconds services add", () => {
@@ -225,6 +227,16 @@ describe("upgradeLegacyTime", () => {
     expect(upgradeLegacyTime(spec, "1234")).toBe("1234");
     expect(upgradeLegacyTime(spec, undefined)).toBeUndefined();
     expect(upgradeLegacyTime(undefined, "4756")).toBe("4756");
+  });
+});
+
+describe("showsMoment", () => {
+  it("is true of satellite Layers with Times, and not of basemaps, which hide when", () => {
+    expect(showsMoment(getLayer("gibs.goes.east")!)).toBe(true);
+    expect(showsMoment(getLayer("gibs.viirs.noaa20")!)).toBe(true);
+    expect(showsMoment(getLayer("eox.s2cloudless")!)).toBe(false);
+    expect(showsMoment(getLayer("esri.wayback")!)).toBe(false);
+    expect(showsMoment(getLayer("versatiles.satellite")!)).toBe(false);
   });
 });
 

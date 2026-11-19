@@ -3,20 +3,23 @@ import { CalendarDate, type DateValue } from "@internationalized/date";
 import { computed, ref } from "vue";
 
 import { pressed } from "@/components/pressed";
-import { isMatchable, useAppState } from "@/composables/useAppState";
+import { useAppState } from "@/composables/useAppState";
 import { findLayer } from "@/composables/useCatalogue";
 import { useClock } from "@/composables/useClock";
 import {
   atSlot,
+  DAY,
   dayOf,
   earliestTime,
   formatTime,
   hasTimeOnDay,
+  HOUR,
   humanTime,
   latestTime,
   listTimes,
   parseTime,
   type ResolvedTime,
+  showsMoment,
   slotOf,
   timeAgo,
   timeAtOrBefore,
@@ -25,7 +28,7 @@ import {
   timeShiftedBy,
   timesOnDay,
 } from "@/lib/layers/time";
-import type { Layer, TimeSpec } from "@/lib/layers/types";
+import type { Layer } from "@/lib/layers/types";
 
 /**
  * Everything for choosing a Time, behind the pane's one time button. Shaped by what the Times are:
@@ -40,15 +43,15 @@ import type { Layer, TimeSpec } from "@/lib/layers/types";
  * pictures and says so.
  */
 
-const props = defineProps<{ layer: Layer; spec: TimeSpec; domain: TimeDomain; resolved: ResolvedTime; following: boolean; native?: boolean }>();
+const props = defineProps<{ layer: Layer; domain: TimeDomain; resolved: ResolvedTime; following: boolean; native?: boolean }>();
 const emit = defineEmits<{ update: [time: string | undefined]; done: [] }>();
 
 const { now } = useClock();
 const { panes, showTimeOnEveryPane } = useAppState();
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
+/** TimeControl only opens the panel for a Layer with Times. */
+const spec = computed(() => props.layer.time!);
 
-const shape = computed(() => (props.spec.values ? "list" : props.domain.precision === "minute" ? "slots" : "date"));
+const shape = computed(() => (spec.value.values ? "list" : props.domain.precision === "minute" ? "slots" : "date"));
 const current = computed(() => parseTime(props.resolved.time));
 const latest = computed(() => latestTime(props.domain));
 const latestLabel = computed(() => (latest.value === undefined ? "" : formatTime(latest.value, props.domain.precision)));
@@ -58,9 +61,15 @@ function ago(time: string): string {
   return ms === undefined ? "" : timeAgo(ms, now.value);
 }
 
-function pick(time: string | undefined, done = true) {
+/** Sets the Time and leaves the panel open, to step on from there. */
+function choose(time: string | undefined) {
   emit("update", time);
-  if (done) emit("done");
+}
+
+/** Sets the Time and closes the panel: a list entry or a day is a final answer. */
+function chooseAndClose(time: string | undefined) {
+  emit("update", time);
+  emit("done");
 }
 
 /**
@@ -69,7 +78,7 @@ function pick(time: string | undefined, done = true) {
  * fixed state leads with the newest picture, which is why anyone opens it.
  */
 const isNewest = computed(() => current.value !== undefined && current.value === latest.value);
-const status = computed(() => {
+const followStatus = computed(() => {
   if (props.following) {
     return {
       title: "Following the latest",
@@ -129,7 +138,7 @@ function pickDay(value: string) {
   const ms = parseTime(value);
   if (ms === undefined) return;
   if (shape.value !== "slots") {
-    pick(value);
+    chooseAndClose(value);
     return;
   }
   let target = value;
@@ -142,7 +151,7 @@ function pickDay(value: string) {
   const frames = timesOnDay(props.domain, parseTime(target)!);
   const wanted = parseTime(atSlot(target, slotOf(props.resolved.time) ?? "12:00"))!;
   const nearest = frames.reduce((best, f) => (Math.abs(parseTime(f)! - wanted) < Math.abs(parseTime(best)! - wanted) ? f : best));
-  pick(nearest, false);
+  choose(nearest);
 }
 
 function onCalendar(value: unknown) {
@@ -174,7 +183,7 @@ function pickHour(hour: string) {
   const inHour = byHour.value.get(hour);
   if (!inHour) return;
   const minutes = slotOf(props.resolved.time)?.slice(3);
-  pick(inHour.find((f) => slotOf(f)!.endsWith(`:${minutes}`)) ?? inHour[0], false);
+  choose(inHour.find((f) => slotOf(f)!.endsWith(`:${minutes}`)) ?? inHour[0]);
 }
 
 /** Greyed out when that hour or day has no picture, rather than landing somewhere else. */
@@ -199,16 +208,16 @@ const shortcuts = computed(() => {
  * it is offered only while some satellite pane is fixed: when they all follow it would do nothing.
  */
 const canMatch = computed(() => {
-  if (!isMatchable(props.layer)) return false;
+  if (!showsMoment(props.layer)) return false;
   const matchable = panes.value.filter((p) => {
     const layer = findLayer(p.layerId);
-    return layer !== undefined && isMatchable(layer);
+    return layer !== undefined && showsMoment(layer);
   });
   return matchable.length > 1 && (!props.following || matchable.some((p) => p.time !== undefined));
 });
 
 /** Following the latest is what gets shared when this pane follows it; otherwise the moment on screen. */
-const everywhere = computed(() =>
+const everyPane = computed(() =>
   props.following
     ? { label: "Follow the latest on every pane", icon: "i-lucide-radio", note: "Each satellite pane follows its own newest picture. Basemaps keep their Time." }
     : {
@@ -218,7 +227,7 @@ const everywhere = computed(() =>
       },
 );
 
-function showEverywhere() {
+function showOnEveryPane() {
   showTimeOnEveryPane(props.following ? undefined : props.resolved.time);
   emit("done");
 }
@@ -241,7 +250,7 @@ function showEverywhere() {
         class="hover:bg-elevated flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs pointer-coarse:py-2.5"
         :class="option === resolved.time ? 'bg-primary/10' : ''"
         :aria-pressed="option === resolved.time"
-        @click="pick(option)"
+        @click="chooseAndClose(option)"
       >
         <span class="text-highlighted flex-1 tabular-nums">{{ humanTime(option) }}</span>
         <span class="text-muted text-[11px]">{{ ago(option) }}</span>
@@ -311,7 +320,7 @@ function showEverywhere() {
             :label="slotOf(frame)"
             v-bind="pressed(frame === resolved.time, 'soft')"
             class="justify-center px-0 font-mono text-[10px] pointer-coarse:py-1.5"
-            @click="pick(frame, false)"
+            @click="choose(frame)"
           />
         </div>
       </div>
@@ -326,7 +335,7 @@ function showEverywhere() {
           :aria-label="shortcut.name"
           :disabled="shortcut.time === undefined"
           class="justify-center font-mono text-[10px] pointer-coarse:py-1.5"
-          @click="pick(shortcut.time, false)"
+          @click="choose(shortcut.time)"
         />
       </div>
     </div>
@@ -338,25 +347,25 @@ function showEverywhere() {
         <p class="flex items-center gap-1.5 text-xs">
           <span v-if="following" class="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
           <UIcon v-else name="i-lucide-pin" class="text-toned size-3.5 shrink-0" aria-hidden="true" />
-          <span class="text-highlighted font-medium">{{ status.title }}</span>
+          <span class="text-highlighted font-medium">{{ followStatus.title }}</span>
         </p>
-        <p class="text-muted mt-0.5 text-[11px] leading-snug">{{ status.note }}</p>
+        <p class="text-muted mt-0.5 text-[11px] leading-snug">{{ followStatus.note }}</p>
         <UButton
           size="xs"
-          :color="status.action.color"
-          :variant="status.action.variant"
-          :icon="status.action.icon"
-          :label="status.action.label"
+          :color="followStatus.action.color"
+          :variant="followStatus.action.variant"
+          :icon="followStatus.action.icon"
+          :label="followStatus.action.label"
           class="mt-2 w-full justify-center pointer-coarse:py-1.5"
-          @click="pick(status.action.time, false)"
+          @click="choose(followStatus.action.time)"
         />
       </div>
 
       <!-- The same moment everywhere: GOES-East beside Meteosat at one instant, or a daily swath
          beside the geostationary frame of that morning. -->
       <div v-if="canMatch">
-        <UButton size="xs" color="neutral" variant="outline" :icon="everywhere.icon" :label="everywhere.label" class="w-full justify-center" @click="showEverywhere" />
-        <p class="text-dimmed mt-1 text-[10px] leading-snug">{{ everywhere.note }}</p>
+        <UButton size="xs" color="neutral" variant="outline" :icon="everyPane.icon" :label="everyPane.label" class="w-full justify-center" @click="showOnEveryPane" />
+        <p class="text-dimmed mt-1 text-[10px] leading-snug">{{ everyPane.note }}</p>
       </div>
     </div>
   </div>

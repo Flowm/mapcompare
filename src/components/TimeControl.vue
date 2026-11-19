@@ -132,7 +132,6 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         <TimePanel
           v-if="domain && resolved"
           :layer="layer"
-          :spec="spec"
           :domain="domain"
           :resolved="resolved"
           :following="following"
