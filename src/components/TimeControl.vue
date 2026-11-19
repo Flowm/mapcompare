@@ -20,7 +20,7 @@ import type { Layer } from "@/lib/layers/types";
  *
  * The joined date field, slot list and "latest" button this replaces were half a pane wide, wrapped
  * in the manager's column, offered days that had no picture, and sat empty while a service was
- * still being asked which Times it has. The button says "Loading dates…" instead.
+ * still being asked which Times it has. The button says "Loading times…" instead.
  */
 
 const props = defineProps<{ layer: Layer; time: string | undefined; dense?: boolean }>();
@@ -31,14 +31,25 @@ const { domain: state } = useTimeDomain(computed(() => props.layer));
 
 /** Only an answer about this Layer: while a switch is in flight the control shows nothing stale. */
 const domain = computed(() => (state.value.state === "ready" && state.value.layerId === props.layer.id ? state.value.domain : undefined));
-const status = computed(() => {
-  if (domain.value) return "ready";
-  if (state.value.state === "error" && state.value.layerId === props.layer.id) return "error";
-  return "loading";
-});
-
 const spec = computed(() => props.layer.time);
 const resolved = computed(() => (domain.value ? resolveTime(domain.value, props.time) : undefined));
+
+/**
+ * "empty" is a service that answered with no Times, which would otherwise look like loading that
+ * never ends. Empty and error still open the panel: it is where the reason can be read on a phone.
+ */
+const status = computed(() => {
+  if (resolved.value) return "ready";
+  if (state.value.layerId !== props.layer.id) return "loading";
+  if (state.value.state === "error") return "error";
+  if (state.value.state === "ready" || state.value.state === "static") return "empty";
+  return "loading";
+});
+const problem = computed(() => {
+  const what = `${spec.value?.label.toLowerCase() ?? "time"}s for ${props.layer.label}`;
+  if (status.value === "error") return { title: `Could not load the ${what}.`, detail: state.value.state === "error" ? state.value.message : "" };
+  return { title: `The service lists no ${what} right now.`, detail: "Try again later, or choose another layer." };
+});
 const current = computed(() => (resolved.value ? parseTime(resolved.value.time) : undefined));
 const following = computed(() => props.time === undefined);
 
@@ -47,7 +58,9 @@ const next = computed(() => (domain.value && current.value !== undefined ? timeA
 
 const label = computed(() => {
   if (resolved.value) return humanTime(resolved.value.time);
-  return status.value === "error" ? "Dates unavailable" : "Loading dates…";
+  if (status.value === "error") return "Times unavailable";
+  if (status.value === "empty") return "No times listed";
+  return "Loading times…";
 });
 
 /** Wide enough for the longest label of its kind, so ◀ ▶ do not shift as the date changes. */
@@ -61,9 +74,16 @@ const open = ref(false);
 
 const surface = computed(() =>
   isCompact.value
-    ? { is: UDrawer, props: { title: `${spec.value?.label ?? "Time"} for ${props.layer.label}`, ui: { body: "p-0 sm:p-0" } } }
+    ? {
+        is: UDrawer,
+        // Dense means the layer manager, which is itself a drawer on a phone.
+        props: { title: `${spec.value?.label ?? "Time"} for ${props.layer.label}`, nested: props.dense, ui: { body: "p-0 sm:p-0" } },
+      }
     : { is: UPopover, props: { content: { side: "bottom" as const, align: "start" as const, collisionPadding: 8 } } },
 );
+
+/** The drawer's body or the popover's content: one panel either way. */
+const panelSlot = computed(() => (isCompact.value ? "body" : "content"));
 
 function step(target: number | undefined) {
   if (target !== undefined && domain.value) emit("update", formatTime(target, domain.value.precision));
@@ -96,9 +116,8 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         variant="outline"
         trailing-icon="i-lucide-chevron-down"
         :loading="status === 'loading'"
-        :disabled="status !== 'ready'"
+        :disabled="status === 'loading'"
         :class="[overMap, minWidth, dense && 'text-[10px]', 'justify-between tabular-nums']"
-        :title="status === 'error' && state.state === 'error' ? state.message : undefined"
         :aria-label="`${spec.label}: ${label.replace(/…$/, '')}${resolved ? (following ? ', following the latest' : ', fixed') : ''}. Choose another`"
       >
         <span class="truncate">{{ label }}</span>
@@ -109,7 +128,7 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         <UIcon v-else-if="resolved" name="i-lucide-pin" class="text-muted size-3 shrink-0" aria-hidden="true" />
       </UButton>
 
-      <template v-if="isCompact" #body>
+      <template #[panelSlot]>
         <TimePanel
           v-if="domain && resolved"
           :layer="layer"
@@ -117,22 +136,14 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
           :domain="domain"
           :resolved="resolved"
           :following="following"
-          native
+          :native="isCompact"
           @update="emit('update', $event)"
           @done="open = false"
         />
-      </template>
-      <template v-else #content>
-        <TimePanel
-          v-if="domain && resolved"
-          :layer="layer"
-          :spec="spec"
-          :domain="domain"
-          :resolved="resolved"
-          :following="following"
-          @update="emit('update', $event)"
-          @done="open = false"
-        />
+        <div v-else class="w-full space-y-1 p-3 text-xs sm:w-[19rem]" role="status">
+          <p class="text-highlighted font-medium">{{ problem.title }}</p>
+          <p v-if="problem.detail" class="text-muted text-[11px] leading-snug break-words">{{ problem.detail }}</p>
+        </div>
       </template>
     </component>
 

@@ -293,17 +293,20 @@ export function hasTimeOnDay(domain: TimeDomain, day: number): boolean {
 }
 
 /**
- * The Time `delta` milliseconds from `t`, or the latest one before that when nothing was recorded
- * then. Undefined when the moment asked for lies past either end of the archive, so "+1 d" from
- * this morning is unavailable rather than quietly landing on the newest frame an hour later.
+ * The Time in the hour or day `delta` away from `t`, nearest the same moment in it: "+1 h" from
+ * 18:20 is the 19:20 frame, or the 19:00 one when 19:20 was skipped. Undefined when that hour or day
+ * holds nothing, so a gap or either end of the archive greys the step out rather than landing two
+ * days back or three hours on. `delta` is a whole number of UTC hours or days, which sets the window.
  */
 export function timeShiftedBy(domain: TimeDomain, t: number, delta: number): number | undefined {
   const target = t + delta;
-  const latest = latestTime(domain);
-  const earliest = earliestTime(domain);
-  if (latest === undefined || earliest === undefined || target > latest || target < earliest) return undefined;
-  const found = timeAtOrBefore(domain, target);
-  return found !== undefined && (delta > 0 ? found > t : found < t) ? found : undefined;
+  const span = Math.abs(delta);
+  const from = target - (((target % span) + span) % span);
+  let best: number | undefined;
+  for (let f = timeAfter(domain, from - 1); f !== undefined && f < from + span; f = timeAfter(domain, f)) {
+    if (best === undefined || Math.abs(f - target) < Math.abs(best - target)) best = f;
+  }
+  return best;
 }
 
 /**

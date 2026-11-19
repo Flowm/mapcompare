@@ -31,7 +31,8 @@ import {
 import type { TimeSpec } from "./types";
 
 const utc = (s: string) => parseTime(s)!;
-const DAY = 86_400_000;
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
 describe("parseTime / formatTime", () => {
   it("reads every precision this app writes, and the seconds services add", () => {
@@ -109,18 +110,26 @@ describe("domains", () => {
     expect(hasTimeOnDay(goes, utc("2026-11-14"))).toBe(false);
   });
 
-  it("shifts by a duration to the frame then, or the last one before it", () => {
-    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -20 * 60_000)!, "minute")).toBe("2026-11-13T18:40Z");
-    // 18:30 is the missing slot, so half an hour back from 19:00 lands on 18:20.
-    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -30 * 60_000)!, "minute")).toBe("2026-11-13T18:20Z");
-    expect(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), 60 * 60_000)).toBeUndefined();
-    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -DAY)).toBeUndefined();
+  it("shifts by an hour or a day to the frame nearest the same moment then", () => {
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -HOUR)!, "minute")).toBe("2026-11-13T18:00Z");
+    // 19:40 was not recorded, so the nearest frame in that hour.
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T18:40Z"), HOUR)!, "minute")).toBe("2026-11-13T19:00Z");
+    // 18:30 is the missing slot: a day back from 18:30 takes the nearer frame, not the day's last.
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-14T18:30Z"), -DAY)!, "minute")).toBe("2026-11-13T18:20Z");
   });
 
-  it("will not shift to a moment past either end, even when a frame lies in between", () => {
-    // 19:20 is past the newest frame: +1 h is unavailable, not a jump to 19:00.
-    expect(timeShiftedBy(goes, utc("2026-11-13T18:20Z"), 60 * 60_000)).toBeUndefined();
-    expect(timeShiftedBy(goes, utc("2026-11-13T18:40Z"), -60 * 60_000)).toBeUndefined();
+  it("greys a step out when that hour or day holds nothing, rather than landing elsewhere", () => {
+    expect(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), HOUR)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -HOUR)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -DAY)).toBeUndefined();
+    // Every three hours: the hours between are empty both ways, not a three-hour jump back.
+    const georing = domainFromIntervals(["2026-11-13T00:00Z/2026-11-13T21:00Z/PT3H"], "minute");
+    expect(timeShiftedBy(georing, utc("2026-11-13T12:00Z"), -HOUR)).toBeUndefined();
+    expect(timeShiftedBy(georing, utc("2026-11-13T12:00Z"), HOUR)).toBeUndefined();
+    // A missing day is not stepped over to the day before it.
+    const gap = domainFromIntervals(["2026-11-10T12:00Z/2026-11-11T12:00Z/PT1H", "2026-11-13T12:00Z/2026-11-14T12:00Z/PT1H"], "minute");
+    expect(timeShiftedBy(gap, utc("2026-11-13T12:00Z"), -DAY)).toBeUndefined();
+    expect(formatTime(timeShiftedBy(gap, utc("2026-11-11T09:00Z"), -DAY)!, "minute")).toBe("2026-11-10T12:00Z");
   });
 
   it("writes one moment at each Layer's precision", () => {

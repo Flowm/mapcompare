@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CalendarDate, type DateValue } from "@internationalized/date";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import { pressed } from "@/components/pressed";
 import { isMatchable, useAppState } from "@/composables/useAppState";
@@ -19,6 +19,8 @@ import {
   type ResolvedTime,
   slotOf,
   timeAgo,
+  timeAtOrBefore,
+  timeAfter,
   type TimeDomain,
   timeShiftedBy,
   timesOnDay,
@@ -33,8 +35,9 @@ import type { Layer, TimeSpec } from "@/lib/layers/types";
  *   - sub-daily series: the calendar, then the hours of that day and the frames in the hour, so a
  *     missing frame is a disabled button rather than a silent jump to an earlier one
  *
- * On a phone the day is the phone's own date picker (`native`), which is the better one there;
- * it cannot grey out a skipped day, so the hours below it still show what that day holds.
+ * On a phone the day is the phone's own date picker (`native`), which is the better one there.
+ * It cannot grey out a skipped day, so choosing one moves to the nearest earlier day that has
+ * pictures and says so.
  */
 
 const props = defineProps<{ layer: Layer; spec: TimeSpec; domain: TimeDomain; resolved: ResolvedTime; following: boolean; native?: boolean }>();
@@ -114,7 +117,14 @@ function isSkipped(date: DateValue): boolean {
   return ms === undefined || !hasTimeOnDay(props.domain, ms);
 }
 
-/** A sub-daily day keeps its time of day, or the frame nearest it, so stepping dates compares like with like. */
+/** A day asked for that had no pictures, and the day shown instead, said while that day is on screen. */
+const skipped = ref<{ asked: string; shown: string; at: number }>();
+
+/**
+ * A sub-daily day keeps its time of day, or the frame nearest it, so stepping dates compares like
+ * with like. A day without pictures, which only the phone's date picker can offer, becomes the
+ * nearest earlier day that has some, the same rule a link to a missing Time follows.
+ */
 function pickDay(value: string) {
   const ms = parseTime(value);
   if (ms === undefined) return;
@@ -122,9 +132,15 @@ function pickDay(value: string) {
     pick(value);
     return;
   }
-  const frames = timesOnDay(props.domain, ms);
-  if (frames.length === 0) return;
-  const wanted = parseTime(atSlot(value, slotOf(props.resolved.time) ?? "12:00"))!;
+  let target = value;
+  if (!hasTimeOnDay(props.domain, ms)) {
+    const fallback = timeAtOrBefore(props.domain, ms) ?? timeAfter(props.domain, ms);
+    if (fallback === undefined) return;
+    target = formatTime(fallback, "day");
+  }
+  skipped.value = target === value ? undefined : { asked: value, shown: target, at: Date.now() };
+  const frames = timesOnDay(props.domain, parseTime(target)!);
+  const wanted = parseTime(atSlot(target, slotOf(props.resolved.time) ?? "12:00"))!;
   const nearest = frames.reduce((best, f) => (Math.abs(parseTime(f)! - wanted) < Math.abs(parseTime(best)! - wanted) ? f : best));
   pick(nearest, false);
 }
@@ -161,7 +177,7 @@ function pickHour(hour: string) {
   pick(inHour.find((f) => slotOf(f)!.endsWith(`:${minutes}`)) ?? inHour[0], false);
 }
 
-/** Greyed out when the moment lies past either end of the archive, rather than landing somewhere else. */
+/** Greyed out when that hour or day has no picture, rather than landing somewhere else. */
 const shortcuts = computed(() => {
   const t = current.value;
   if (t === undefined || shape.value !== "slots") return [];
@@ -178,15 +194,17 @@ const shortcuts = computed(() => {
 
 // ------------------------------------------------------------------------------ every pane
 
-/** Offered from a satellite pane, and only when another satellite pane has Times to set. */
+/**
+ * Offered from a satellite pane, and only when another satellite pane has Times to set. Following,
+ * it is offered only while some satellite pane is fixed: when they all follow it would do nothing.
+ */
 const canMatch = computed(() => {
   if (!isMatchable(props.layer)) return false;
-  return (
-    panes.value.filter((p) => {
-      const layer = findLayer(p.layerId);
-      return layer !== undefined && isMatchable(layer);
-    }).length > 1
-  );
+  const matchable = panes.value.filter((p) => {
+    const layer = findLayer(p.layerId);
+    return layer !== undefined && isMatchable(layer);
+  });
+  return matchable.length > 1 && (!props.following || matchable.some((p) => p.time !== undefined));
 });
 
 /** Following the latest is what gets shared when this pane follows it; otherwise the moment on screen. */
@@ -233,8 +251,10 @@ function showEverywhere() {
 
     <template v-else>
       <!-- Native on a phone: its own date picker is the better one there. -->
+      <!-- Keyed on the skip, so the field shows the day taken even when it is the one already shown. -->
       <UInput
         v-if="native"
+        :key="skipped?.at"
         type="date"
         :model-value="day"
         :min="bounds.min"
@@ -254,7 +274,10 @@ function showEverywhere() {
         fixed-weeks
         @update:model-value="onCalendar"
       />
-      <p v-if="!native" class="text-dimmed text-[10px] leading-snug">Days in UTC. Struck-through days have no picture.</p>
+      <p v-if="native && skipped?.shown === day" class="text-warning text-[11px] leading-snug" role="status">
+        No pictures on {{ humanTime(skipped.asked) }}. Showing {{ humanTime(skipped.shown) }}.
+      </p>
+      <p class="text-dimmed text-[10px] leading-snug">{{ native ? "Days in UTC." : "Days in UTC. Struck-through days have no picture." }}</p>
     </template>
 
     <!-- Sub-daily: the hours of the day, then the frames in the chosen hour. A missing hour or frame
