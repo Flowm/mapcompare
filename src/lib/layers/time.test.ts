@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { getLayer } from "./registry";
 import {
   atSlot,
   cadenceOf,
+  DAY,
+  HOUR,
+  showsMoment,
   dayOf,
   displayTime,
   slotOf,
@@ -13,6 +17,9 @@ import {
   domainFromValues,
   endedOn,
   formatTime,
+  hasTimeOnDay,
+  timeAt,
+  humanTime,
   latestTime,
   listTimes,
   parseDuration,
@@ -20,13 +27,14 @@ import {
   resolveTime,
   templateTime,
   timeAfter,
+  timeAgo,
   timeBefore,
+  timeShiftedBy,
   timesOnDay,
 } from "./time";
 import type { TimeSpec } from "./types";
 
 const utc = (s: string) => parseTime(s)!;
-const DAY = 86_400_000;
 
 describe("parseTime / formatTime", () => {
   it("reads every precision this app writes, and the seconds services add", () => {
@@ -96,6 +104,41 @@ describe("domains", () => {
       "2026-11-13T19:00Z",
     ]);
     expect(timesOnDay(goes, utc("2026-11-14"))).toStrictEqual([]);
+  });
+
+  it("knows which days have a picture, so a calendar can grey out the rest", () => {
+    expect(hasTimeOnDay(goes, utc("2026-11-13T07:00Z"))).toBe(true);
+    expect(hasTimeOnDay(goes, utc("2026-11-12"))).toBe(false);
+    expect(hasTimeOnDay(goes, utc("2026-11-14"))).toBe(false);
+  });
+
+  it("shifts by an hour or a day to the frame nearest the same moment then", () => {
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -HOUR)!, "minute")).toBe("2026-11-13T18:00Z");
+    // 19:40 was not recorded, so the nearest frame in that hour.
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T18:40Z"), HOUR)!, "minute")).toBe("2026-11-13T19:00Z");
+    // 18:30 is the missing slot: a day back from 18:30 takes the nearer frame, not the day's last.
+    expect(formatTime(timeShiftedBy(goes, utc("2026-11-14T18:30Z"), -DAY)!, "minute")).toBe("2026-11-13T18:20Z");
+  });
+
+  it("greys a step out when that hour or day holds nothing, rather than landing elsewhere", () => {
+    expect(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), HOUR)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -HOUR)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -DAY)).toBeUndefined();
+    // Every three hours: the hours between are empty both ways, not a three-hour jump back.
+    const georing = domainFromIntervals(["2026-11-13T00:00Z/2026-11-13T21:00Z/PT3H"], "minute");
+    expect(timeShiftedBy(georing, utc("2026-11-13T12:00Z"), -HOUR)).toBeUndefined();
+    expect(timeShiftedBy(georing, utc("2026-11-13T12:00Z"), HOUR)).toBeUndefined();
+    // A missing day is not stepped over to the day before it.
+    const gap = domainFromIntervals(["2026-11-10T12:00Z/2026-11-11T12:00Z/PT1H", "2026-11-13T12:00Z/2026-11-14T12:00Z/PT1H"], "minute");
+    expect(timeShiftedBy(gap, utc("2026-11-13T12:00Z"), -DAY)).toBeUndefined();
+    expect(formatTime(timeShiftedBy(gap, utc("2026-11-11T09:00Z"), -DAY)!, "minute")).toBe("2026-11-10T12:00Z");
+  });
+
+  it("writes one moment at each Layer's precision", () => {
+    expect(timeAt("2026-11-13T18:40Z", "minute")).toBe("2026-11-13T18:40Z");
+    expect(timeAt("2026-11-13T18:40Z", "day")).toBe("2026-11-13");
+    expect(timeAt("2026-11-13", "year")).toBe("2026");
+    expect(timeAt("nonsense", "day")).toBeUndefined();
   });
 
   it("will not write out a list too long for a dropdown", () => {
@@ -187,11 +230,40 @@ describe("upgradeLegacyTime", () => {
   });
 });
 
+describe("showsMoment", () => {
+  it("is true of satellite Layers with Times, and not of basemaps, which hide when", () => {
+    expect(showsMoment(getLayer("gibs.goes.east")!)).toBe(true);
+    expect(showsMoment(getLayer("gibs.viirs.noaa20")!)).toBe(true);
+    expect(showsMoment(getLayer("eox.s2cloudless")!)).toBe(false);
+    expect(showsMoment(getLayer("esri.wayback")!)).toBe(false);
+    expect(showsMoment(getLayer("versatiles.satellite")!)).toBe(false);
+  });
+});
+
 describe("display", () => {
   it("says a slot's minutes are UTC, and leaves coarser Times alone", () => {
     expect(displayTime("2026-11-13T19:00Z")).toBe("2026-11-13 19:00 UTC");
     expect(displayTime("2026-11-13")).toBe("2026-11-13");
     expect(displayTime("2025")).toBe("2025");
+  });
+
+  it("writes a Time the way a person reads it, the same in every locale", () => {
+    expect(humanTime("2025")).toBe("2025");
+    expect(humanTime("2026-11-08")).toBe("8 Nov 2026");
+    expect(humanTime("2026-11-13T00:10Z")).toBe("13 Nov 2026, 00:10 UTC");
+    expect(humanTime("not a time")).toBe("not a time");
+  });
+
+  it("says how long ago a Time began, coarsely", () => {
+    const now = new Date(utc("2026-11-19T01:30Z"));
+    expect(timeAgo(utc("2026-11-19T01:30Z"), now)).toBe("just now");
+    expect(timeAgo(utc("2026-11-19T00:50Z"), now)).toBe("40 min ago");
+    expect(timeAgo(utc("2026-11-18T20:00Z"), now)).toBe("5 h ago");
+    expect(timeAgo(utc("2026-11-18"), now)).toBe("yesterday");
+    expect(timeAgo(utc("2026-11-07"), now)).toBe("12 days ago");
+    expect(timeAgo(utc("2026-08-01"), now)).toBe("3 months ago");
+    expect(timeAgo(utc("2025-06-30"), now)).toBe("1 year ago");
+    expect(timeAgo(utc("2019-12-12"), now)).toBe("6 years ago");
   });
 
   it("splits a slot into its day and time of day, and puts them back", () => {

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
+import { useDialogs } from "@/composables/useDialogs";
 import { layerStatuses } from "@/lib/layers/availability";
 import { LAYERS } from "@/lib/layers/registry";
 
@@ -14,15 +15,14 @@ import { LAYERS } from "@/lib/layers/registry";
  * at half height.
  */
 
-const emit = defineEmits<{ "open-keys": []; "open-sources": [] }>();
-
 const { keys } = useApiKeys();
+const { openKeys, openSources } = useDialogs();
 const gatedCount = computed(() => layerStatuses(LAYERS, keys.value).filter((s) => !s.enabled).length);
 </script>
 
 <template>
-  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-key-round" @click="emit('open-keys')">
-    API keys<span v-if="gatedCount > 0" class="text-muted">{{ gatedCount }}</span>
+  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-key-round" @click="openKeys()">
+    API keys<span v-if="gatedCount > 0" class="text-muted">{{ gatedCount }}<span class="sr-only"> layers need one</span></span>
   </UButton>
-  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-book-open" label="Sources &amp; licences" @click="emit('open-sources')" />
+  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-book-open" label="Sources &amp; licences" @click="openSources" />
 </template>

@@ -17,14 +17,26 @@ import type { Layer } from "@/lib/layers/types";
 const documents = new Map<string, Promise<string>>();
 const domains = new Map<string, Promise<TimeDomain | undefined>>();
 
+/** Read only once a fetch has answered, so a URL it cannot parse still rejects rather than throws. */
+function hostOf(url: string): string {
+  return URL.canParse(url) ? new URL(url).host : url;
+}
+
 /** Shared with layer inspection, so adding a STAC Layer warms the cache its panes then read. */
 export function fetchText(url: string): Promise<string> {
   const cached = documents.get(url);
   if (cached) return cached;
-  const pending = fetch(url).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText} from ${new URL(url).host}`);
-    return res.text();
-  });
+  const pending = fetch(url).then(
+    (res) => {
+      if (!res.ok) throw new Error(`${[res.status, res.statusText].filter(Boolean).join(" ")} from ${hostOf(url)}`);
+      return res.text();
+    },
+    // A rejected fetch says only "Failed to fetch" (Chrome) or "Load failed" (Safari), and the
+    // browser will not tell which of the two usual causes it was, so name both.
+    (error: unknown) => {
+      throw new Error(`Could not reach ${hostOf(url)}. The host may be down, or it does not allow requests from other sites (CORS).`, { cause: error });
+    },
+  );
   pending.catch(() => documents.delete(url));
   documents.set(url, pending);
   return pending;

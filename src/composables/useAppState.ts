@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import type { Destination } from "@/lib/destination";
 import { DEFAULT_PANE_LAYERS } from "@/lib/layers/registry";
-import { upgradeLegacyTime } from "@/lib/layers/time";
+import { showsMoment, timeAt, upgradeLegacyTime } from "@/lib/layers/time";
 import { type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { type Mode, paneCountFor } from "@/lib/mode";
 import { type AppStateSnapshot, decodeAddedLayers, decodeState, encodeState } from "@/lib/urlState";
@@ -21,6 +21,7 @@ import { findLayer, knownLayerIds, useCatalogue } from "./useCatalogue";
  */
 
 const { camera } = useCamera();
+
 const { addedLayers, showFromLink, removeLayer } = useCatalogue();
 
 /**
@@ -236,6 +237,26 @@ export function useAppState() {
       if (index < 0 || index >= panes.value.length) return;
       panes.value[index] = clonePaneLayer(layer);
       remembered.value[index] = clonePaneLayer(layer);
+    },
+
+    /**
+     * Gives every satellite pane the same Time as one pane. A moment is shown on each at its own
+     * precision, so GOES-East and Meteosat show the same instant and a daily Layer shows that day,
+     * and every one is pinned, the pane it came from included: following the latest on one would let
+     * it drift away from the rest. No moment means the source follows the latest, and then so does
+     * every pane, each to its own newest picture, rather than all being pinned to this minute's.
+     *
+     * Basemaps keep their own Time: see showsMoment.
+     */
+    showTimeOnEveryPane(moment: string | undefined) {
+      panes.value.forEach((pane, index) => {
+        const layer = findLayer(pane.layerId);
+        if (!layer || !showsMoment(layer)) return;
+        const time = moment === undefined ? undefined : timeAt(moment, layer.time.precision);
+        if (moment !== undefined && time === undefined) return;
+        panes.value[index] = paneLayer(pane.layerId, time);
+        remembered.value[index] = paneLayer(pane.layerId, time);
+      });
     },
 
     /** Swaps two panes, which is the quickest way to re-read a swipe comparison. */

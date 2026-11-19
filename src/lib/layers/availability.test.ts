@@ -46,9 +46,9 @@ describe("layerStatus", () => {
     expect(layerStatus(mapbox, { VITE_MAPTILER_KEY: "abc" }).enabled).toBe(false);
   });
 
-  it("names the env var in the visible reason, so the fix is discoverable", () => {
+  it("names the provider in the visible reason, and the env var for the dialog it opens", () => {
     const { disabled } = layerStatus(mapbox, {});
-    expect(disabled?.message).toContain("VITE_MAPBOX_TOKEN");
+    expect(disabled?.message).toContain("API key from Mapbox");
     expect(disabled?.key).toBe("VITE_MAPBOX_TOKEN");
   });
 

@@ -32,7 +32,7 @@ import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
 const props = defineProps<{ index: number; layer: PaneLayer; align?: "left" | "right" }>();
 const emit = defineEmits<{ update: [layer: PaneLayer] }>();
 
-const { activePane, openManager, focusPane } = useLayerPanel();
+const { activePane, openManagerSearch, focusPane } = useLayerPanel();
 const { isCompact } = useViewport();
 const { mode } = useAppState();
 
@@ -66,7 +66,7 @@ function pickTime(time: string | undefined) {
 
 function showEverything() {
   open.value = false;
-  openManager();
+  openManagerSearch();
 }
 </script>
 

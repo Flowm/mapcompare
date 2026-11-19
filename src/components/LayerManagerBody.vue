@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import type { DropdownMenuItem } from "@nuxt/ui";
+import { computed, nextTick, ref, watch } from "vue";
 
 import LayerManagerActions from "@/components/LayerManagerActions.vue";
 import { pressed } from "@/components/pressed";
@@ -7,7 +8,9 @@ import TimeControl from "@/components/TimeControl.vue";
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useAppState } from "@/composables/useAppState";
 import { findLayer, useCatalogue } from "@/composables/useCatalogue";
+import { useDialogs } from "@/composables/useDialogs";
 import { useLayerPanel } from "@/composables/useLayerPanel";
+import { useViewport } from "@/composables/useViewport";
 import { isAddedLayer } from "@/lib/layers/added";
 import {
   CADENCE_LABELS,
@@ -24,7 +27,7 @@ import {
 } from "@/lib/layers/availability";
 import { licenceClasses, licenceInfo } from "@/lib/layers/licence";
 import { type Cadence, cadenceOf } from "@/lib/layers/time";
-import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type ProviderId } from "@/lib/layers/types";
+import { type Category, type Layer, type Orbit, paneLayer, type ProviderId } from "@/lib/layers/types";
 
 /**
  * The whole catalogue, and the whole deck, in one surface.
@@ -37,7 +40,7 @@ import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type
  * It does three things a per-pane popover cannot:
  *
  *   - shows every pane at once, so a four-up deck reads without opening four menus
- *   - copies one pane's exact layer onto another (`→2`), and swaps a pair
+ *   - copies one pane's exact layer onto another, and swaps any two, from each pane's menu
  *   - lists the layers that need an API key, with the reason and a way to add one
  *
  * It is closable, and that only works because the pickers do the everyday job on their own. With
@@ -48,12 +51,13 @@ import { type ApiKeyName, type Category, type Layer, type Orbit, paneLayer, type
  */
 
 const { footer = true } = defineProps<{ footer?: boolean }>();
-const emit = defineEmits<{ "open-keys": [key?: ApiKeyName]; "open-sources": []; "add-layer": [] }>();
 
 const { panes, setPaneLayer, swapPanes, removeAddedLayer } = useAppState();
 const { keys } = useApiKeys();
-const { activePane, groupBy, focusPane } = useLayerPanel();
+const { activePane, groupBy, focusPane, searchPending, managerSearchHandled } = useLayerPanel();
+const { isCompact } = useViewport();
 const { catalogue, isSaved, saveLayer } = useCatalogue();
+const { openKeys, openAddLayer } = useDialogs();
 
 /**
  * Not persisted, unlike the grouping: a filter left on from yesterday would quietly hide Layers
@@ -65,18 +69,49 @@ const facetFilter = ref<LayerFilter>({ ...NO_FILTER });
 const query = ref("");
 const filter = computed<LayerFilter>(() => ({ ...facetFilter.value, text: query.value }));
 
+/**
+ * The facets fold away behind one button. Open, they took most of a phone's half-height drawer, so
+ * opening the manager to pick a layer showed no layer at all. The button's count and the summary
+ * line under the search say when a folded filter is still narrowing the list.
+ */
+const filtersOpen = ref(false);
+const activeFacets = computed(() => {
+  const f = facetFilter.value;
+  return f.categories.length + f.orbits.length + f.cadences.length + f.providers.length;
+});
+
+/**
+ * Asked for by a picker's "Layer manager" entry. Not on a phone, where focus would raise the
+ * keyboard over the drawer that was just opened to show the list. Waits a frame for the popover
+ * that asked to close and hand focus back to its trigger, which would otherwise take it straight
+ * back.
+ */
+const SEARCH_ID = "layer-manager-search";
+watch(
+  searchPending,
+  async (pending) => {
+    if (!pending) return;
+    managerSearchHandled();
+    if (isCompact.value) return;
+    await nextTick();
+    requestAnimationFrame(() => {
+      const input = document.getElementById(SEARCH_ID);
+      if (!(input instanceof HTMLInputElement)) return;
+      input.focus();
+      input.select();
+    });
+  },
+  { immediate: true },
+);
+
 function clearFilters() {
   facetFilter.value = { ...NO_FILTER };
   query.value = "";
 }
 
 const statuses = computed(() => layerStatuses(catalogue.value, keys.value));
-const groups = computed(() =>
-  groupLayers(
-    statuses.value.filter((s) => matchesFilter(s.layer, filter.value)),
-    groupBy.value,
-  ),
-);
+const matching = computed(() => statuses.value.filter((s) => matchesFilter(s.layer, filter.value)));
+const groups = computed(() => groupLayers(matching.value, groupBy.value));
 
 const facets = computed(() => ({
   categories: Object.entries(CATEGORY_LABELS) as [Category, string][],
@@ -132,6 +167,15 @@ function otherPanes(index: number): number[] {
   return panes.value.map((_, i) => i).filter((i) => i !== index);
 }
 
+/** What one pane can do to the others: an identical second view, or trading places. */
+function paneMenu(index: number): DropdownMenuItem[][] {
+  const others = otherPanes(index);
+  return [
+    others.map((other) => ({ label: `Copy onto pane ${other + 1}`, icon: "i-lucide-copy", onSelect: () => copyTo(index, other) })),
+    others.map((other) => ({ label: `Swap with pane ${other + 1}`, icon: "i-lucide-arrow-left-right", onSelect: () => swapPanes(index, other) })),
+  ];
+}
+
 function pickTime(index: number, time: string | undefined) {
   const layerId = panes.value[index]!.layerId;
   setPaneLayer(index, paneLayer(layerId, time));
@@ -151,8 +195,8 @@ function assign(layer: Layer) {
 type Facet = "categories" | "orbits" | "cadences";
 
 /**
- * Every facet's chips as one list, so the template renders a chip one way. Each chip carries its own
- * toggle, which keeps the facet and its value typed together instead of re-dispatching on the facet.
+ * Each facet's chips, so the template renders a chip one way. Each chip carries its own toggle,
+ * which keeps the facet and its value typed together instead of re-dispatching on the facet.
  */
 function chipsFor<K extends Facet>(facet: K, options: [LayerFilter[K][number], string][]) {
   return options.map(([value, label]) => ({
@@ -163,7 +207,12 @@ function chipsFor<K extends Facet>(facet: K, options: [LayerFilter[K][number], s
   }));
 }
 
-const facetChips = computed(() => [...chipsFor("categories", facets.value.categories), ...chipsFor("orbits", facets.value.orbits), ...chipsFor("cadences", facets.value.cadences)]);
+/** One labelled row per facet, so it reads which chips are alternatives to each other. */
+const facetRows = computed(() => [
+  { key: "categories", label: "Type", chips: chipsFor("categories", facets.value.categories) },
+  { key: "orbits", label: "Orbit", chips: chipsFor("orbits", facets.value.orbits) },
+  { key: "cadences", label: "Cadence", chips: chipsFor("cadences", facets.value.cadences) },
+]);
 </script>
 
 <template>
@@ -175,62 +224,68 @@ const facetChips = computed(() => [...chipsFor("categories", facets.value.catego
       </div>
 
       <div v-for="{ pane, index, layer, licence } in paneRows" :key="index" class="rounded px-1.5 py-1" :class="index === target ? 'bg-primary/15' : ''">
-        <button type="button" class="flex w-full items-center gap-1.5 text-left pointer-coarse:py-1.5" :aria-pressed="index === target" @click="focusPane(index)">
-          <UBadge size="sm" :color="index === target ? 'primary' : 'neutral'" :variant="index === target ? 'solid' : 'subtle'" :label="String(index + 1)" class="font-mono" />
-          <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
-          <span v-if="layer && licence" class="shrink-0 text-[10px]" :class="licenceClasses(layer).text">
-            {{ licence.label }}
-          </span>
-        </button>
+        <div class="flex items-center gap-1">
+          <button type="button" class="flex min-w-0 flex-1 items-center gap-1.5 text-left pointer-coarse:py-1.5" :aria-pressed="index === target" @click="focusPane(index)">
+            <UBadge size="sm" :color="index === target ? 'primary' : 'neutral'" :variant="index === target ? 'solid' : 'subtle'" :label="String(index + 1)" class="font-mono" />
+            <span class="text-highlighted min-w-0 flex-1 truncate text-xs">{{ layer?.label ?? pane.layerId }}</span>
+            <span v-if="layer && licence" class="shrink-0 text-[10px]" :class="licenceClasses(layer).text">
+              {{ licence.label }}
+            </span>
+          </button>
+          <!-- A sibling of the row's button, not inside it, so it stays reachable by keyboard. -->
+          <UDropdownMenu v-if="panes.length > 1" :items="paneMenu(index)" :content="{ align: 'end' }">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-ellipsis" class="-my-1" :aria-label="`Copy or swap pane ${index + 1}`" />
+          </UDropdownMenu>
+        </div>
 
-        <div v-if="layer?.time || panes.length > 1" class="mt-1 flex flex-wrap items-center gap-1 pl-6">
-          <TimeControl v-if="layer?.time" dense :layer="layer" :time="pane.time" @update="pickTime(index, $event)" />
-
-          <UTooltip v-for="other in otherPanes(index)" :key="other" :text="`Copy this layer onto pane ${other + 1}`">
-            <UButton
-              size="xs"
-              color="neutral"
-              variant="outline"
-              :label="`→${other + 1}`"
-              class="font-mono text-[10px]"
-              :aria-label="`Copy this layer onto pane ${other + 1}`"
-              @click="copyTo(index, other)"
-            />
-          </UTooltip>
+        <div v-if="layer?.time" class="mt-1 flex flex-wrap items-center gap-1 pl-6">
+          <TimeControl dense :layer="layer" :time="pane.time" @update="pickTime(index, $event)" />
         </div>
       </div>
     </div>
 
     <div class="border-default shrink-0 space-y-1.5 border-b p-1.5">
       <div class="flex items-center gap-1">
-        <UInput v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" class="min-w-0 flex-1" />
+        <UInput :id="SEARCH_ID" v-model="query" type="search" icon="i-lucide-search" size="xs" placeholder="Filter layers…" aria-label="Filter layers" class="min-w-0 flex-1" />
+        <UTooltip :text="filtersOpen ? 'Hide filters' : 'Filter by type, orbit, cadence and provider'">
+          <UButton
+            size="xs"
+            icon="i-lucide-sliders-horizontal"
+            :color="filtersOpen || activeFacets > 0 ? 'primary' : 'neutral'"
+            :variant="filtersOpen || activeFacets > 0 ? 'soft' : 'outline'"
+            :label="activeFacets > 0 ? String(activeFacets) : undefined"
+            :aria-label="activeFacets > 0 ? `Filters, ${activeFacets} on` : 'Filters'"
+            :aria-expanded="filtersOpen"
+            aria-controls="layer-filters"
+            @click="filtersOpen = !filtersOpen"
+          />
+        </UTooltip>
         <UTooltip text="Add a layer by URL: STAC, COG or XYZ tiles">
-          <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" label="Add" @click="emit('add-layer')" />
+          <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" label="Add" @click="openAddLayer" />
         </UTooltip>
       </div>
 
-      <!-- Facets. Within a facet the chips are alternatives; across facets all must hold. -->
-      <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by category, orbit and cadence">
-        <UButton
-          v-for="chip in facetChips"
-          :key="chip.key"
-          size="xs"
-          v-bind="pressed(chip.on, 'soft')"
-          :label="chip.label"
-          class="px-1.5 py-0.5 text-[10px] pointer-coarse:px-2.5 pointer-coarse:py-1.5"
-          @click="chip.toggle"
-        />
-      </div>
+      <!-- Within a facet the chips are alternatives; across facets all must hold. -->
+      <div v-if="filtersOpen" id="layer-filters" class="grid grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-x-1.5 gap-y-1 px-0.5">
+        <template v-for="row in facetRows" :key="row.key">
+          <span :id="`facet-${row.key}`" class="text-dimmed text-[10px]">{{ row.label }}</span>
+          <div class="flex flex-wrap gap-1" role="group" :aria-labelledby="`facet-${row.key}`">
+            <UButton
+              v-for="chip in row.chips"
+              :key="chip.key"
+              size="xs"
+              v-bind="pressed(chip.on, 'soft')"
+              :label="chip.label"
+              class="px-1.5 py-0.5 text-[10px] pointer-coarse:px-2.5 pointer-coarse:py-1.5"
+              @click="chip.toggle"
+            />
+          </div>
+        </template>
 
-      <div class="flex items-center gap-1">
-        <USelect
-          :model-value="filter.providers[0] ?? ALL_PROVIDERS"
-          :items="providerItems"
-          size="xs"
-          aria-label="Provider"
-          class="min-w-0 flex-1"
-          @update:model-value="pickProvider"
-        />
+        <span class="text-dimmed text-[10px]">Provider</span>
+        <USelect :model-value="filter.providers[0] ?? ALL_PROVIDERS" :items="providerItems" size="xs" aria-label="Provider" class="min-w-0" @update:model-value="pickProvider" />
+
+        <span class="text-dimmed text-[10px]">Group</span>
         <UFieldGroup size="xs" aria-label="Group by">
           <UButton
             v-for="grouping in GROUPINGS"
@@ -243,9 +298,12 @@ const facetChips = computed(() => [...chipsFor("categories", facets.value.catego
         </UFieldGroup>
       </div>
 
-      <p class="text-dimmed flex items-center justify-between px-0.5 text-[10px]">
-        <span>Choosing a layer sets pane {{ target + 1 }}.</span>
-        <UButton v-if="isFiltering(filter)" size="xs" color="neutral" variant="link" label="clear filters" class="p-0 text-[10px]" @click="clearFilters" />
+      <p class="text-dimmed flex items-center justify-between gap-2 px-0.5 text-[10px]" aria-live="polite">
+        <span>
+          <template v-if="isFiltering(filter)">{{ matching.length }} of {{ statuses.length }} layers · </template>
+          Choosing a layer sets pane {{ target + 1 }}.
+        </span>
+        <UButton v-if="isFiltering(filter)" size="xs" color="neutral" variant="link" label="clear filters" class="shrink-0 p-0 text-[10px]" @click="clearFilters" />
       </p>
     </div>
 
@@ -262,7 +320,7 @@ const facetChips = computed(() => [...chipsFor("categories", facets.value.catego
             class="hover:bg-elevated block w-full px-2.5 py-1.5 text-left pointer-coarse:py-2.5"
             :class="panes[target]?.layerId === entry.layer.id ? 'bg-primary/10' : ''"
             :aria-current="panes[target]?.layerId === entry.layer.id ? 'true' : undefined"
-            @click="entry.enabled ? assign(entry.layer) : emit('open-keys', entry.disabled!.key)"
+            @click="entry.enabled ? assign(entry.layer) : openKeys(entry.disabled!.key)"
           >
             <span class="flex items-center gap-1.5" :class="entry.enabled ? '' : 'opacity-55'">
               <span class="size-1.5 shrink-0 rounded-full" :class="licenceClasses(entry.layer).dot" />
@@ -307,13 +365,16 @@ const facetChips = computed(() => [...chipsFor("categories", facets.value.catego
         </div>
       </div>
 
-      <p v-if="groups.length === 0" class="text-muted px-2.5 py-3 text-xs">No layer matches these filters.</p>
+      <div v-if="groups.length === 0" class="px-2.5 py-4 text-center">
+        <p class="text-muted text-xs">No layer matches these filters.</p>
+        <UButton size="xs" color="neutral" variant="outline" label="Clear filters" class="mt-2" @click="clearFilters" />
+      </div>
     </div>
 
     <!-- Pinned below the list, so they stay reachable while it scrolls. The drawer shows them in its
          header instead. -->
     <div v-if="footer" class="border-default flex shrink-0 items-center gap-1 border-t p-1.5">
-      <LayerManagerActions @open-keys="emit('open-keys')" @open-sources="emit('open-sources')" />
+      <LayerManagerActions />
     </div>
   </div>
 </template>

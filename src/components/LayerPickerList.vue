@@ -60,8 +60,18 @@ const groups = computed<CommandPaletteGroup[]>(() => {
     class="max-h-[min(340px,60dvh)]"
     :ui="{ item: 'py-1 pointer-coarse:py-2', group: 'p-1', label: 'py-1' }"
   >
+    <!-- Centred on the row: the palette aligns items to the top, which puts a 6px dot above the
+         middle of the label beside it. -->
     <template #item-leading="{ item }">
-      <span class="size-1.5 shrink-0 rounded-full" :class="(item as LayerItem).dot" />
+      <span class="size-1.5 shrink-0 self-center rounded-full" :class="(item as LayerItem).dot" />
+    </template>
+
+    <!-- The pane's own Layer, marked: the list otherwise gives no hint of what is on the map. -->
+    <template #item-trailing="{ item }">
+      <template v-if="item.active">
+        <UIcon name="i-lucide-check" class="text-primary size-3.5 shrink-0 self-center" aria-hidden="true" />
+        <span class="sr-only">(current)</span>
+      </template>
     </template>
 
     <template #empty>

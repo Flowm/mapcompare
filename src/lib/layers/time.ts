@@ -1,5 +1,5 @@
 import type { DiscoveredTimes } from "./discovery";
-import type { TimePrecision, TimeSpec } from "./types";
+import type { Layer, TimePrecision, TimeSpec } from "./types";
 
 /**
  * Which pictures a Layer has, and which one a request means.
@@ -15,8 +15,9 @@ import type { TimePrecision, TimeSpec } from "./types";
  * for the snapshot published on or before it, and never for a picture of the future.
  */
 
-const MINUTE = 60_000;
-const DAY = 24 * 60 * MINUTE;
+export const MINUTE = 60_000;
+export const HOUR = 60 * MINUTE;
+export const DAY = 24 * HOUR;
 
 export interface TimeRange {
   /** Milliseconds, UTC. */
@@ -283,6 +284,85 @@ export function timesOnDay(domain: TimeDomain, day: number): string[] {
   const out: string[] = [];
   for (let t = timeAfter(domain, from - 1); t !== undefined && t < to; t = timeAfter(domain, t)) out.push(formatTime(t, domain.precision));
   return out;
+}
+
+/** Whether any Time falls within the UTC day of `day`: the days a calendar offers. */
+export function hasTimeOnDay(domain: TimeDomain, day: number): boolean {
+  const from = floorTo(day, "day");
+  const first = timeAfter(domain, from - 1);
+  return first !== undefined && first < from + DAY;
+}
+
+/**
+ * The Time in the hour or day `delta` away from `t`, nearest the same moment in it: "+1 h" from
+ * 18:20 is the 19:20 frame, or the 19:00 one when 19:20 was skipped. Undefined when that hour or day
+ * holds nothing, so a gap or either end of the archive greys the step out rather than landing two
+ * days back or three hours on. `delta` is a whole number of UTC hours or days, which sets the window.
+ */
+export function timeShiftedBy(domain: TimeDomain, t: number, delta: number): number | undefined {
+  const target = t + delta;
+  const span = Math.abs(delta);
+  const from = target - (((target % span) + span) % span);
+  let best: number | undefined;
+  for (let f = timeAfter(domain, from - 1); f !== undefined && f < from + span; f = timeAfter(domain, f)) {
+    if (best === undefined || Math.abs(f - target) < Math.abs(best - target)) best = f;
+  }
+  return best;
+}
+
+/**
+ * Whether a Layer has its own picture of a moment: a satellite Layer with Times, which shows when.
+ * A basemap hides when (CONTEXT.md), so a moment means nothing to it, and asking EOX for 2026
+ * would only earn a "showing 2025" warning. These are the Layers one moment is set across.
+ */
+export function showsMoment(layer: Layer): layer is Layer & { time: TimeSpec } {
+  return layer.category === "satellite" && layer.time !== undefined;
+}
+
+/**
+ * One moment written at another Layer's precision: the day of it, or the year. Asking a Layer for
+ * that resolves, by the usual rule, to its picture whose Period contains the moment.
+ */
+export function timeAt(moment: string, precision: TimePrecision): string | undefined {
+  const ms = parseTime(moment);
+  return ms === undefined ? undefined : formatTime(floorTo(ms, precision), precision);
+}
+
+// ------------------------------------------------------------------------------ labels
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * A formatted Time as a person reads it: "2025", "18 Nov 2026", "19 Nov 2026, 00:10 UTC". Fixed
+ * English rather than the browser's locale, so everyone who opens a link reads the same date, and
+ * a day never reads as the month in the other order.
+ */
+export function humanTime(time: string): string {
+  const ms = parseTime(time);
+  if (ms === undefined || /^\d{4}$/.test(time.trim())) return time.trim();
+  const d = new Date(ms);
+  const day = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  const slot = slotOf(time);
+  return slot === undefined ? day : `${day}, ${slot} UTC`;
+}
+
+/**
+ * How long before `now` a Time began, as coarsely as a glance needs: "40 min ago", "5 h ago",
+ * "yesterday", "12 days ago", "3 months ago", "2 years ago". A daily composite begins at midnight,
+ * so yesterday's reads "yesterday" all day.
+ */
+export function timeAgo(ms: number, now: Date): string {
+  const diff = now.getTime() - ms;
+  if (diff < MINUTE) return "just now";
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)} min ago`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)} h ago`;
+  const days = Math.floor(diff / DAY);
+  if (days < 2) return "yesterday";
+  if (days < 45) return `${days} days ago`;
+  const months = Math.floor(days / 30.44);
+  if (months < 12) return months === 1 ? "1 month ago" : `${months} months ago`;
+  const years = Math.floor(days / 365.25);
+  return years === 1 ? "1 year ago" : `${years} years ago`;
 }
 
 /**

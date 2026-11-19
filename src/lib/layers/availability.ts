@@ -42,7 +42,8 @@ export function layerStatus(layer: Layer, keys: ApiKeys): LayerStatus {
         key: required,
         keyUrl: layer.keyUrl,
         freeTier: layer.freeTier,
-        message: `Needs ${required} — set it in .env.development or paste a key in Settings.`,
+        // In the reader's terms. The env var is in `key`, for the API keys dialog to show.
+        message: `Needs an API key from ${providerLabel(layer)}. Select to add one.`,
       },
     };
   }

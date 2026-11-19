@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { useToast } from "@nuxt/ui/composables/useToast";
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 
 import AddLayerDialog from "@/components/AddLayerDialog.vue";
 import CameraReadout from "@/components/CameraReadout.vue";
@@ -17,10 +17,10 @@ import ShareButton from "@/components/ShareButton.vue";
 import SourcesDialog from "@/components/SourcesDialog.vue";
 import { useAppState } from "@/composables/useAppState";
 import { useCatalogue } from "@/composables/useCatalogue";
+import { useDialogs } from "@/composables/useDialogs";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 import { useLayerPanel } from "@/composables/useLayerPanel";
 import { useShare } from "@/composables/useShare";
-import type { ApiKeyName } from "@/lib/layers/types";
 
 const { labels, setLabels, installHistoryListener } = useAppState();
 const { managerOpen, toggleManager } = useLayerPanel();
@@ -45,20 +45,16 @@ useKeyboardShortcuts();
 // owning both ends rather than wired up here. Nothing to hand in, and no way to close the loop.
 installHistoryListener();
 
-const keysOpen = ref(false);
-const sourcesOpen = ref(false);
-const addLayerOpen = ref(false);
-const focusKey = ref<ApiKeyName | undefined>();
-
-function openKeys(key?: ApiKeyName) {
-  focusKey.value = key;
-  keysOpen.value = true;
-}
+const { keysOpen, focusKey, sourcesOpen, addLayerOpen } = useDialogs();
 
 /** A constant, so the app shell does not hand UApp a new object, and re-render it, on every render. */
 const TOASTER = { position: "bottom-right" } as const;
 
-/** On a phone the header has room for the essentials only; the rest waits behind this menu. */
+/**
+ * On a phone the header has room for the essentials only, so the Share and Labels buttons wait
+ * behind this menu. Only those: API keys, adding a layer and the sources table are in the layer
+ * manager's drawer, one tap away, and listing them twice made this menu longer for nothing.
+ */
 const overflowItems = computed<DropdownMenuItem[][]>(() => [
   [
     { label: "Copy link", icon: "i-lucide-link", onSelect: () => share("toast") },
@@ -70,11 +66,6 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
       checked: labels.value,
       onUpdateChecked: (checked: boolean) => setLabels(checked),
     },
-  ],
-  [
-    { label: "API keys", icon: "i-lucide-key-round", onSelect: () => openKeys() },
-    { label: "Add a layer", icon: "i-lucide-plus", onSelect: () => (addLayerOpen.value = true) },
-    { label: "Sources & licences", icon: "i-lucide-book-open", onSelect: () => (sourcesOpen.value = true) },
   ],
 ]);
 </script>
@@ -121,7 +112,7 @@ const overflowItems = computed<DropdownMenuItem[][]>(() => [
           <MapDeck />
         </main>
 
-        <LayerManager @open-keys="openKeys" @open-sources="sourcesOpen = true" @add-layer="addLayerOpen = true" />
+        <LayerManager />
       </div>
 
       <KeysDialog v-model:open="keysOpen" :focus-key="focusKey" />

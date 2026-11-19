@@ -142,6 +142,8 @@ function add() {
             />
             <UButton type="submit" label="Inspect" :loading="inspecting" :disabled="url.trim() === ''" />
           </div>
+          <!-- Right under the URL it is about: below the formats list it fell out of view. -->
+          <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :description="error" role="alert" />
         </form>
 
         <!-- Only until something is found: then the result says which format it was. -->
@@ -172,12 +174,10 @@ function add() {
           </div>
         </section>
 
-        <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :description="error" />
-
         <div v-if="candidates.length > 1" class="space-y-1">
           <p class="text-muted text-[10px] font-semibold tracking-wide uppercase">Found {{ candidates.length }} layers</p>
           <p v-if="partial" class="text-warning text-[11px] leading-snug">
-            This source has more than one inspection reads, so only the first {{ WALK.collections }} collections are offered. Paste a collection's own URL to add one further in.
+            This source is larger than one inspection reads, so only the first {{ WALK.collections }} collections are offered. Paste a collection's own URL to add one further in.
           </p>
           <div class="border-default max-h-48 overflow-y-auto rounded border" role="radiogroup" aria-label="Layers found">
             <button
@@ -207,7 +207,7 @@ function add() {
           </div>
 
           <UFormField label="Name" size="sm">
-            <UInput v-model="label" :maxlength="ADDED_LIMITS.label" class="w-full" />
+            <UInput v-model="label" :maxlength="ADDED_LIMITS.label" class="w-full" @keydown.enter.prevent="add" />
           </UFormField>
 
           <div class="flex flex-wrap gap-3">

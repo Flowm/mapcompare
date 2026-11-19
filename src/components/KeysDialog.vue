@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useToast } from "@nuxt/ui/composables/useToast";
 import { computed, ref, watch } from "vue";
 
 import { useApiKeys } from "@/composables/useApiKeys";
 import { useViewport } from "@/composables/useViewport";
+import { providerLabel } from "@/lib/layers/availability";
 import { LAYERS } from "@/lib/layers/registry";
 import type { ApiKeyName } from "@/lib/layers/types";
 
@@ -12,21 +14,42 @@ const props = defineProps<{ focusKey?: ApiKeyName }>();
 const { sources, overrides, setKey, clearKey } = useApiKeys();
 
 const { isCompact } = useViewport();
+const toast = useToast();
 
-/** One row per key, listing which layers it unlocks. */
+/**
+ * One row per key, listing which layers it unlocks. Headed by who issues the key, which is what a
+ * reader looks for; the env var name is for whoever builds the site.
+ */
 const rows = computed(() => {
-  const byKey = new Map<ApiKeyName, { name: ApiKeyName; layers: typeof LAYERS; keyUrl?: string; freeTier?: string }>();
+  const byKey = new Map<ApiKeyName, { name: ApiKeyName; provider: string; layers: typeof LAYERS; keyUrl?: string; freeTier?: string }>();
   for (const layer of LAYERS) {
     const name = layer.requiresKey;
     if (!name) continue;
     const existing = byKey.get(name);
     if (existing) existing.layers = [...existing.layers, layer];
-    else byKey.set(name, { name, layers: [layer], keyUrl: layer.keyUrl, freeTier: layer.freeTier });
+    else byKey.set(name, { name, provider: providerLabel(layer), layers: [layer], keyUrl: layer.keyUrl, freeTier: layer.freeTier });
   }
   return [...byKey.values()];
 });
 
+/** Counted, so the sentence stays true as layers are added. */
+const keylessCount = LAYERS.filter((l) => !l.requiresKey).length;
+const setCount = computed(() => rows.value.filter((row) => sources.value[row.name] !== "none").length);
+
 const drafts = ref<Partial<Record<ApiKeyName, string>>>({});
+/** Keys shown in clear, to check a paste. Never persisted. */
+const revealed = ref(new Set<ApiKeyName>());
+
+function toggleReveal(name: ApiKeyName) {
+  const next = new Set(revealed.value);
+  if (!next.delete(name)) next.add(name);
+  revealed.value = next;
+}
+
+/** Whether the field differs from what is stored, so Save is only offered when it would do something. */
+function isDirty(name: ApiKeyName): boolean {
+  return (drafts.value[name] ?? "").trim() !== (overrides.value[name] ?? "").trim();
+}
 
 /**
  * Each key's input is found by id, not by a component ref. A ref on a Nuxt UI component is only
@@ -38,7 +61,9 @@ const inputId = (name: ApiKeyName) => `api-key-${name}`;
 watch(
   open,
   (isOpen) => {
-    if (isOpen) drafts.value = { ...overrides.value };
+    if (!isOpen) return;
+    drafts.value = { ...overrides.value };
+    revealed.value = new Set();
   },
   { immediate: true },
 );
@@ -55,13 +80,22 @@ function focusRequestedKey(event: Event) {
   field.focus();
 }
 
+function providerOf(name: ApiKeyName): string {
+  return rows.value.find((row) => row.name === name)?.provider ?? name;
+}
+
+/** Runs on Enter, on the button and when the field loses focus, so only a change says anything. */
 function save(name: ApiKeyName) {
-  setKey(name, drafts.value[name] ?? "");
+  if (!isDirty(name)) return;
+  const value = drafts.value[name] ?? "";
+  setKey(name, value);
+  toast.add({ title: value.trim() === "" ? `${providerOf(name)} key removed` : `${providerOf(name)} key saved`, description: "In this browser only.", icon: "i-lucide-key-round" });
 }
 
 function clear(name: ApiKeyName) {
   drafts.value = { ...drafts.value, [name]: "" };
   clearKey(name);
+  toast.add({ title: `${providerOf(name)} key removed`, icon: "i-lucide-key-round" });
 }
 
 const SOURCE_TEXT = {
@@ -76,7 +110,8 @@ const SOURCE_TEXT = {
     <template #body>
       <div class="space-y-4">
         <p class="text-muted text-xs leading-relaxed">
-          Every key is optional — the app ships over twenty keyless layers without them. Keys unlock the commercial providers so you can compare them too.
+          Every key is optional: {{ keylessCount }} layers work without one. Keys unlock the commercial providers so you can compare them too.
+          <span class="text-toned">{{ setCount }} of {{ rows.length }} set.</span>
         </p>
 
         <div v-for="row in rows" :key="row.name" class="border-ink-700/70 rounded border p-3">
@@ -87,14 +122,18 @@ const SOURCE_TEXT = {
             :ui="{ description: 'text-[11px]', hint: 'text-[10px]' }"
           >
             <template #label>
-              <code class="text-default font-mono text-xs">{{ row.name }}</code>
+              <!-- Each part on one line; on a phone the env var drops below rather than splitting a name. -->
+              <span class="inline-flex flex-wrap items-baseline gap-x-2">
+                <span class="text-highlighted text-sm font-medium whitespace-nowrap">{{ row.provider }}</span>
+                <code class="text-dimmed font-mono text-[10px] whitespace-nowrap">{{ row.name }}</code>
+              </span>
             </template>
 
             <div class="flex items-center gap-1.5">
               <UInput
                 :id="inputId(row.name)"
                 v-model="drafts[row.name]"
-                type="password"
+                :type="revealed.has(row.name) ? 'text' : 'password'"
                 autocomplete="off"
                 spellcheck="false"
                 :placeholder="sources[row.name] === 'build' ? 'Override the built-in key…' : 'Paste a key…'"
@@ -102,8 +141,22 @@ const SOURCE_TEXT = {
                 :ui="{ base: 'font-mono' }"
                 @change="save(row.name)"
                 @keydown.enter.prevent="save(row.name)"
-              />
-              <UButton color="neutral" variant="outline" label="Save" @click="save(row.name)" />
+              >
+                <template #trailing>
+                  <UButton
+                    color="neutral"
+                    variant="link"
+                    size="sm"
+                    :icon="revealed.has(row.name) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                    :aria-label="revealed.has(row.name) ? `Hide the ${row.provider} key` : `Show the ${row.provider} key`"
+                    :aria-pressed="revealed.has(row.name)"
+                    class="-mr-1"
+                    @mousedown.prevent
+                    @click="toggleReveal(row.name)"
+                  />
+                </template>
+              </UInput>
+              <UButton color="neutral" variant="outline" label="Save" :disabled="!isDirty(row.name)" @click="save(row.name)" />
               <UButton v-if="sources[row.name] === 'user'" color="neutral" variant="ghost" label="Clear" @click="clear(row.name)" />
             </div>
 
