@@ -14,6 +14,7 @@ import {
   endedOn,
   formatTime,
   hasTimeOnDay,
+  timeAt,
   humanTime,
   latestTime,
   listTimes,
@@ -114,6 +115,19 @@ describe("domains", () => {
     expect(formatTime(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), -30 * 60_000)!, "minute")).toBe("2026-11-13T18:20Z");
     expect(timeShiftedBy(goes, utc("2026-11-13T19:00Z"), 60 * 60_000)).toBeUndefined();
     expect(timeShiftedBy(goes, utc("2026-11-13T18:00Z"), -DAY)).toBeUndefined();
+  });
+
+  it("will not shift to a moment past either end, even when a frame lies in between", () => {
+    // 19:20 is past the newest frame: +1 h is unavailable, not a jump to 19:00.
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:20Z"), 60 * 60_000)).toBeUndefined();
+    expect(timeShiftedBy(goes, utc("2026-11-13T18:40Z"), -60 * 60_000)).toBeUndefined();
+  });
+
+  it("writes one moment at each Layer's precision", () => {
+    expect(timeAt("2026-11-13T18:40Z", "minute")).toBe("2026-11-13T18:40Z");
+    expect(timeAt("2026-11-13T18:40Z", "day")).toBe("2026-11-13");
+    expect(timeAt("2026-11-13", "year")).toBe("2026");
+    expect(timeAt("nonsense", "day")).toBeUndefined();
   });
 
   it("will not write out a list too long for a dropdown", () => {

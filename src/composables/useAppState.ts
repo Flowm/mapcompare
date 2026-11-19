@@ -3,8 +3,8 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import type { Destination } from "@/lib/destination";
 import { DEFAULT_PANE_LAYERS } from "@/lib/layers/registry";
-import { upgradeLegacyTime } from "@/lib/layers/time";
-import { type PaneLayer, paneLayer } from "@/lib/layers/types";
+import { timeAt, upgradeLegacyTime } from "@/lib/layers/time";
+import { type Layer, type PaneLayer, paneLayer } from "@/lib/layers/types";
 import { type Mode, paneCountFor } from "@/lib/mode";
 import { type AppStateSnapshot, decodeAddedLayers, decodeState, encodeState } from "@/lib/urlState";
 
@@ -21,6 +21,11 @@ import { findLayer, knownLayerIds, useCatalogue } from "./useCatalogue";
  */
 
 const { camera } = useCamera();
+
+/** Whether a Layer takes part in showing one moment on every pane: one whose pictures show when. */
+export function isMatchable(layer: Layer): boolean {
+  return layer.category === "satellite" && layer.time !== undefined;
+}
 const { addedLayers, showFromLink, removeLayer } = useCatalogue();
 
 /**
@@ -236,6 +241,24 @@ export function useAppState() {
       if (index < 0 || index >= panes.value.length) return;
       panes.value[index] = clonePaneLayer(layer);
       remembered.value[index] = clonePaneLayer(layer);
+    },
+
+    /**
+     * Shows one moment on every satellite pane, each at its own precision, so GOES-East and Meteosat
+     * show the same instant and a daily Layer shows that day. Every one is pinned, the pane it came
+     * from included: following the latest on one would let it drift away from the rest.
+     *
+     * Basemaps keep their own Time. A basemap hides when (CONTEXT.md), so a moment means nothing to
+     * it, and asking EOX for 2026 would only earn a "showing 2025" warning.
+     */
+    showTimeOnEveryPane(moment: string) {
+      panes.value.forEach((pane, index) => {
+        const layer = findLayer(pane.layerId);
+        const time = layer?.time && isMatchable(layer) ? timeAt(moment, layer.time.precision) : undefined;
+        if (time === undefined) return;
+        panes.value[index] = paneLayer(pane.layerId, time);
+        remembered.value[index] = paneLayer(pane.layerId, time);
+      });
     },
 
     /** Swaps two panes, which is the quickest way to re-read a swipe comparison. */

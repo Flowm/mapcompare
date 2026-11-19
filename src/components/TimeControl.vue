@@ -99,7 +99,7 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         :disabled="status !== 'ready'"
         :class="[overMap, minWidth, dense && 'text-[10px]', 'justify-between tabular-nums']"
         :title="status === 'error' && state.state === 'error' ? state.message : undefined"
-        :aria-label="`${spec.label}: ${label}${following && resolved ? ', following the latest' : ''}. Choose another`"
+        :aria-label="`${spec.label}: ${label.replace(/…$/, '')}${following && resolved ? ', following the latest' : ''}. Choose another`"
       >
         <span class="truncate">{{ label }}</span>
         <span v-if="resolved && following" class="text-primary text-[10px] font-medium">latest</span>
@@ -108,6 +108,7 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
       <template v-if="isCompact" #body>
         <TimePanel
           v-if="domain && resolved"
+          :layer="layer"
           :spec="spec"
           :domain="domain"
           :resolved="resolved"
@@ -118,7 +119,16 @@ const overMap = computed(() => (props.dense ? "" : "bg-ink-950/85 backdrop-blur"
         />
       </template>
       <template v-else #content>
-        <TimePanel v-if="domain && resolved" :spec="spec" :domain="domain" :resolved="resolved" :following="following" @update="emit('update', $event)" @done="open = false" />
+        <TimePanel
+          v-if="domain && resolved"
+          :layer="layer"
+          :spec="spec"
+          :domain="domain"
+          :resolved="resolved"
+          :following="following"
+          @update="emit('update', $event)"
+          @done="open = false"
+        />
       </template>
     </component>
 

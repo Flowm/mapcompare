@@ -3,6 +3,8 @@ import { CalendarDate, type DateValue } from "@internationalized/date";
 import { computed } from "vue";
 
 import { pressed } from "@/components/pressed";
+import { isMatchable, useAppState } from "@/composables/useAppState";
+import { findLayer } from "@/composables/useCatalogue";
 import { useClock } from "@/composables/useClock";
 import {
   atSlot,
@@ -21,7 +23,7 @@ import {
   timeShiftedBy,
   timesOnDay,
 } from "@/lib/layers/time";
-import type { TimeSpec } from "@/lib/layers/types";
+import type { Layer, TimeSpec } from "@/lib/layers/types";
 
 /**
  * Everything for choosing a Time, behind the pane's one time button. Shaped by what the Times are:
@@ -35,10 +37,11 @@ import type { TimeSpec } from "@/lib/layers/types";
  * it cannot grey out a skipped day, so the hours below it still show what that day holds.
  */
 
-const props = defineProps<{ spec: TimeSpec; domain: TimeDomain; resolved: ResolvedTime; following: boolean; native?: boolean }>();
+const props = defineProps<{ layer: Layer; spec: TimeSpec; domain: TimeDomain; resolved: ResolvedTime; following: boolean; native?: boolean }>();
 const emit = defineEmits<{ update: [time: string | undefined]; done: [] }>();
 
 const { now } = useClock();
+const { panes, showTimeOnEveryPane } = useAppState();
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
@@ -135,15 +138,38 @@ function pickHour(hour: string) {
   pick(inHour.find((f) => slotOf(f)!.endsWith(`:${minutes}`)) ?? inHour[0], false);
 }
 
+/** Greyed out when the moment lies past either end of the archive, rather than landing somewhere else. */
 const shortcuts = computed(() => {
   const t = current.value;
   if (t === undefined || shape.value !== "slots") return [];
   return [
-    { label: "−1 h", target: timeShiftedBy(props.domain, t, -HOUR) },
-    { label: "+1 h", target: timeShiftedBy(props.domain, t, HOUR) },
-    { label: "Same time yesterday", target: timeShiftedBy(props.domain, t, -DAY) },
-  ].map((s) => ({ ...s, time: s.target === undefined ? undefined : formatTime(s.target, props.domain.precision) }));
+    { label: "−1 d", name: "One day earlier", delta: -DAY },
+    { label: "−1 h", name: "One hour earlier", delta: -HOUR },
+    { label: "+1 h", name: "One hour later", delta: HOUR },
+    { label: "+1 d", name: "One day later", delta: DAY },
+  ].map((s) => {
+    const target = timeShiftedBy(props.domain, t, s.delta);
+    return { ...s, time: target === undefined ? undefined : formatTime(target, props.domain.precision) };
+  });
 });
+
+// ------------------------------------------------------------------------------ every pane
+
+/** Offered from a satellite pane, and only when another satellite pane has Times to set. */
+const canMatch = computed(() => {
+  if (!isMatchable(props.layer)) return false;
+  return (
+    panes.value.filter((p) => {
+      const layer = findLayer(p.layerId);
+      return layer !== undefined && isMatchable(layer);
+    }).length > 1
+  );
+});
+
+function showEverywhere() {
+  showTimeOnEveryPane(props.resolved.time);
+  emit("done");
+}
 </script>
 
 <template>
@@ -239,7 +265,7 @@ const shortcuts = computed(() => {
           />
         </div>
       </div>
-      <div class="flex flex-wrap gap-1">
+      <div class="grid grid-cols-4 gap-1">
         <UButton
           v-for="shortcut in shortcuts"
           :key="shortcut.label"
@@ -247,11 +273,19 @@ const shortcuts = computed(() => {
           color="neutral"
           variant="outline"
           :label="shortcut.label"
+          :aria-label="shortcut.name"
           :disabled="shortcut.time === undefined"
-          class="text-[10px]"
+          class="justify-center font-mono text-[10px] pointer-coarse:py-1.5"
           @click="pick(shortcut.time, false)"
         />
       </div>
+    </div>
+
+    <!-- The same moment everywhere: GOES-East beside Meteosat at one instant, or a daily swath
+         beside the geostationary frame of that morning. -->
+    <div v-if="canMatch" class="border-default border-t pt-3">
+      <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-copy" label="Show this time on every pane" class="w-full justify-center" @click="showEverywhere" />
+      <p class="text-dimmed mt-1 text-[10px] leading-snug">Each satellite pane shows its own picture of this moment and stops following the latest. Basemaps keep theirs.</p>
     </div>
   </div>
 </template>

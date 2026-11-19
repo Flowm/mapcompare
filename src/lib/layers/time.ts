@@ -294,13 +294,25 @@ export function hasTimeOnDay(domain: TimeDomain, day: number): boolean {
 
 /**
  * The Time `delta` milliseconds from `t`, or the latest one before that when nothing was recorded
- * then. Undefined when that would not move past `t` in the asked direction: one hour on from the
- * newest frame, or back from the first.
+ * then. Undefined when the moment asked for lies past either end of the archive, so "+1 d" from
+ * this morning is unavailable rather than quietly landing on the newest frame an hour later.
  */
 export function timeShiftedBy(domain: TimeDomain, t: number, delta: number): number | undefined {
-  const found = timeAtOrBefore(domain, t + delta);
-  if (found === undefined) return undefined;
-  return (delta > 0 ? found > t : found < t) ? found : undefined;
+  const target = t + delta;
+  const latest = latestTime(domain);
+  const earliest = earliestTime(domain);
+  if (latest === undefined || earliest === undefined || target > latest || target < earliest) return undefined;
+  const found = timeAtOrBefore(domain, target);
+  return found !== undefined && (delta > 0 ? found > t : found < t) ? found : undefined;
+}
+
+/**
+ * One moment written at another Layer's precision: the day of it, or the year. Asking a Layer for
+ * that resolves, by the usual rule, to its picture whose Period contains the moment.
+ */
+export function timeAt(moment: string, precision: TimePrecision): string | undefined {
+  const ms = parseTime(moment);
+  return ms === undefined ? undefined : formatTime(floorTo(ms, precision), precision);
 }
 
 // ------------------------------------------------------------------------------ labels
